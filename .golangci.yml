@@ -1,0 +1,59 @@
+# ©AngelaMos | 2026
+# .golangci.yml
+
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - unconvert
+    - usestdlibvars
+    - whitespace
+
+  settings:
+    gosec:
+      excludes:
+        - G304
+        - G703
+        - G704
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1020
+        - -ST1021
+        - -ST1022
+
+  exclusions:
+    rules:
+      - path: internal/gh/cache\.go
+        text: "(G401|G505)"
+        linters:
+          - gosec
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+          - prealloc
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt

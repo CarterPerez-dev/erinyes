@@ -1,0 +1,14 @@
+# ©AngelaMos | 2026
+# .gitignore
+
+/erinyes
+/erinyes.exe
+/dist/
+coverage.out
+coverage.html
+*.sarif
+
+# Local corpora of real malware samples never belong in this repository.
+/corpus/
+/samples/
+testdata/real/

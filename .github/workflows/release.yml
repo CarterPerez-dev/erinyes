@@ -1,0 +1,48 @@
+# ©AngelaMos | 2026
+# release.yml
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: tag to build
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: test before shipping anything
+        run: go test ./... -race
+
+      - name: build every platform and package it
+        run: make package
+
+      - name: show what will be published
+        run: cat dist/checksums.txt
+
+      - name: publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -1,0 +1,78 @@
+# ©AngelaMos | 2026
+# pymapper_fs.yaml
+
+id: pymapper-fs-loader
+version: 1
+family: PyMapper
+severity: critical
+confidence_threshold: 60
+file_patterns: ["*.py"]
+
+first_seen: 2026-10-14
+contributor: carterperez-dev
+description: >
+  Stage-1 Python loader from the PyMapper malware-as-a-service platform.
+  Uses a one-line XOR lambda to decode imports and encryption keys, then an
+  HMAC-SHA256 keystream decrypts an embedded blob to reveal a reflective PE
+  loader. Observed across at least five operators who each re-roll the
+  variable-name template, so every indicator matches structure rather than
+  literal identifiers.
+references:
+  - "Operation CLAUDEIUS, Perez & Claude, 2026"
+
+indicators:
+  - name: xor_decoder_lambda
+    weight: 40
+    type: regex
+    pattern: 'lambda\s+\w+\s*,\s*\w+\s*:\s*bytes\(\s*\w+\s*\^\s*\w+\s+for\s+\w+\s+in\s+\w+\s*\)'
+
+  - name: import_via_xor_decoder
+    weight: 25
+    type: regex
+    pattern: '__import__\(\s*\w+\(\s*\[\s*\d+'
+
+  - name: rolling_xor_checksum
+    weight: 30
+    type: regex
+    pattern: 'sum\(\s*\(\s*\w+\[\s*\w+\s*\]\s*\+\s*\w+\s*\)\s*\^\s*\w+\s+for\s+\w+\s+in\s+range\(\s*len\(\s*\w+\s*\)\s*\)\s*\)\s*&\s*255'
+
+  - name: hmac_keystream_block
+    weight: 20
+    type: regex
+    pattern: 'min\(\s*32\s*,\s*len\(\s*\w+\s*\)\s*-\s*\w+\s*\)'
+
+  - name: embedded_encrypted_blob
+    weight: 25
+    type: regex
+    pattern: '\[(?:\s*\d{1,3}\s*,){80,}'
+
+  - name: getattr_name_hiding
+    weight: 15
+    type: regex
+    pattern: 'getattr\(\s*\w+\s*,\s*\w+\(\s*\[\s*\d'
+
+retrohunt:
+  github_queries:
+    - '"lambda a,k:bytes(v^k for v in a)" language:python'
+    - '"bytes(v^k for v in a)" language:python'
+    - '"_rd9r1n" language:python'
+    - '"_spd980k" language:python'
+    - '"_trtmhwg1q" language:python'
+  rate_limit_rps: 1.0
+
+known_hashes:
+  - sha256: 72d765b9be76ba841ec95548368bf9a67c9ea3823ae064d8d0beff66c4598bd9
+    label: "kloxeld/xscrape xscrape/fs.py (operator A template _rd9r1n)"
+    first_seen: 2026-10-14
+  - sha256: 49934c28b909ab683e8bd8046b35a54d620f5362063184fbcd913c936fdda802
+    label: "shared operator A stage-1 across 8 trojan repos (walletool, KawaiiGPT, Pharos-Testnet-Bot, web3-decoder, mflowgen, sora2-watermark-remover-enchanted, Trading-Bot-for-Binance-Future, ecdsa-private-key-recovery)"
+    first_seen: 2026-10-14
+  - sha256: 32b577f5a1c356d3b0259e660743a442cad1e80a4532133f3f406c492892aaae
+    label: "hkqr/my-free-code my_free_code/core/point.py (operator A template _rd9r1n)"
+    first_seen: 2026-10-14
+  - sha256: 60c5c203da3088eae0c0e76d9d638d15bd9670149ba0bcb22012dc25a3a19e7d
+    label: "letorig/video-generator-client src/video_gen/seedance.py (template _trtmhwg1q)"
+    first_seen: 2026-10-14
+  - sha256: 5ea250db3dbfd4fd902b3b3431767720aea560510a51d2686a9f513e212ac65d
+    label: "hitechcloud-vietnam cve-2026-41940-PoC and wp2shell-PoC exp.py (operator B template _spd980k)"
+    first_seen: 2026-10-14

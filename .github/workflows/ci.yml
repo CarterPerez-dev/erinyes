@@ -1,0 +1,127 @@
+# ©AngelaMos | 2026
+# ci.yml
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build
+        run: go build ./...
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./... -race
+
+      - name: validate the shipped signature catalog
+        run: go run ./cmd/erinyes signatures validate ./signatures
+
+      - name: the builtin catalog must flag every malicious fixture
+        shell: bash
+        run: |
+          set +e
+          go run ./cmd/erinyes scan ./testdata/known_malicious
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "expected exit 1 from the malicious fixtures, got $code"
+            exit 1
+          fi
+
+      - name: the builtin catalog must not flag any benign fixture
+        run: go run ./cmd/erinyes scan ./testdata/known_benign
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  installer:
+    name: installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shell syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y shellcheck
+          shellcheck -S warning install.sh uninstall.sh
+
+      - name: help exits clean and a bad flag does not
+        run: |
+          ./install.sh --help >/dev/null
+          if ./install.sh --nonsense >/dev/null 2>&1; then
+            echo "a bad flag should exit non-zero"
+            exit 1
+          fi
+
+      - name: end to end install into a sandboxed HOME
+        run: |
+          SANDBOX="$(mktemp -d)"
+          HOME="$SANDBOX" SHELL=/bin/bash ./install.sh --from-source --prefix "$SANDBOX/bin"
+          "$SANDBOX/bin/erinyes" version
+          "$SANDBOX/bin/erinyes" signatures list
+          HOME="$SANDBOX" ./uninstall.sh --prefix "$SANDBOX/bin"
+          test ! -f "$SANDBOX/bin/erinyes"
+
+  sarif:
+    name: sarif
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: produce a sarif report
+        run: go run ./cmd/erinyes scan ./testdata --format sarif --output erinyes.sarif || true
+
+      - name: validate it against the oasis schema
+        run: |
+          python3 -m pip install --quiet jsonschema
+          curl -fsSL -o sarif-2.1.0.json \
+            https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json
+          python3 - <<'PY'
+          import json, jsonschema
+          jsonschema.validate(json.load(open("erinyes.sarif")), json.load(open("sarif-2.1.0.json")))
+          print("sarif is valid")
+          PY
