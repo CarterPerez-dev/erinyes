@@ -31,6 +31,7 @@ type huntOptions struct {
 	workers      int
 	includeForks bool
 	dryRun       bool
+	queries      []string
 }
 
 func newHuntCommand(g *globals) *cobra.Command {
@@ -61,6 +62,7 @@ func newHuntCommand(g *globals) *cobra.Command {
 	cmd.Flags().IntVar(&opts.workers, "workers", 4, "concurrent file fetches")
 	cmd.Flags().BoolVar(&opts.includeForks, "include-forks", false, "include results from forked repositories")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "print the queries that would run and exit")
+	cmd.Flags().StringArrayVarP(&opts.queries, "query", "q", nil, "search GitHub with this query instead of the signature's declared ones (repeatable)")
 
 	return cmd
 }
@@ -106,17 +108,29 @@ func runHunt(ctx context.Context, g *globals, id string, opts huntOptions) error
 	var queries []string
 	rps := opts.rps
 	for _, s := range sigs {
+		if opts.rps == 0 && (rps == 0 || s.RateLimitRPS() < rps) {
+			rps = s.RateLimitRPS()
+		}
+		if len(opts.queries) > 0 {
+			continue
+		}
 		if len(s.Retrohunt.GitHubQueries) == 0 {
 			_, _ = fmt.Fprintf(g.errOut(), "note: signature %s declares no retrohunt queries, skipping\n", s.ID)
 			continue
 		}
 		queries = append(queries, s.Retrohunt.GitHubQueries...)
-		if opts.rps == 0 && (rps == 0 || s.RateLimitRPS() < rps) {
-			rps = s.RateLimitRPS()
-		}
 	}
+
+	if len(opts.queries) > 0 {
+		if len(sigs) > 1 {
+			return fail(exitToolError, "--query needs exactly one signature to score with, not %d (name one instead of \"all\")", len(sigs))
+		}
+		queries = opts.queries
+		_, _ = fmt.Fprintf(g.errOut(), "using %d ad-hoc quer(y|ies), scoring with %s\n", len(queries), sigs[0].ID)
+	}
+
 	if len(queries) == 0 {
-		return fail(exitToolError, "no retrohunt queries declared by the selected signature(s)")
+		return fail(exitToolError, "no retrohunt queries declared by the selected signature(s), pass --query to supply your own")
 	}
 	queries = dedupeStrings(queries)
 
@@ -216,6 +230,11 @@ func searchAll(ctx context.Context, g *globals, client *gh.Client, sigs []*sig.S
 			if _, taken := byQuery[q]; !taken {
 				byQuery[q] = s
 			}
+		}
+	}
+	for _, q := range queries {
+		if _, taken := byQuery[q]; !taken {
+			byQuery[q] = sigs[0]
 		}
 	}
 

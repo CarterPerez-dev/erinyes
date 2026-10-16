@@ -97,6 +97,14 @@ github_queries:
   - '"_spd980k" language:python'
 ```
 
+Prefer queries anchored on code the packer does not randomize. Operator-specific literals go stale: `"_trtmhwg1q"` matched two files on 2026-10-14 and zero two days later, while the structural queries kept working. Keep the literals, but never rely on them alone.
+
+You can test a query without editing the signature:
+
+```bash
+erinyes hunt my-family -q '"some invariant" language:python'
+```
+
 `rate_limit_rps` paces file fetches. It cannot raise GitHub's hard cap of 10 code-search requests per minute, which the client enforces regardless.
 
 ### `known_hashes`

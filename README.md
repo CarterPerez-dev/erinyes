@@ -84,7 +84,16 @@ erinyes hunt all --format markdown --output hunt.md
 erinyes hunt pymapper-fs-loader --limit 100 --dry-run
 ```
 
-Runs the signature's declared code-search queries, pulls every result, scans it locally. GitHub caps code search at 10 requests per minute, so a wide hunt is paced rather than fast — the tool respects that cap instead of getting your token throttled.
+Runs the signature's declared code-search queries, pulls every result, scans it locally.
+
+To test a hypothesis without editing YAML, supply your own queries. They replace the signature's declared ones, and results are still scored by that signature's indicators:
+
+```bash
+erinyes hunt pymapper-fs-loader -q '"p+=t;c+=1" language:python'
+erinyes hunt pymapper-fs-loader -q '"first" language:python' -q '"second" language:python'
+```
+
+That is the loop for finding an operator nobody has characterized yet: guess at an invariant, hunt it, see what scores. GitHub caps code search at 10 requests per minute, so a wide hunt is paced rather than fast — the tool respects that cap instead of getting your token throttled.
 
 Every blob it downloads is cached forever, keyed by its git blob SHA. The second run of the same hunt costs zero API calls:
 
@@ -177,6 +186,17 @@ _trtmhwg1q= lambda a,k:bytes(v^k for v in a)     # operator ?
 ```
 
 Grepping for `_rd9r1n` finds one operator's campaign. Matching the *shape* of the decoder finds all of them, including operators whose template nobody has seen yet. Every shipped indicator is anchored on structure for exactly this reason, and the patterns tolerate inserted whitespace so that reformatting the payload is not a one-keystroke evasion.
+
+Queries on a variable template rot the moment a campaign goes down. `"_trtmhwg1q"` returned two results on 2026-10-14 and zero on 2026-10-16. The structural queries kept returning the rest of the family, which is why most of the shipped queries are anchored on code the packer never randomizes:
+
+```
+return sum((w[i]+p)^i for i in range(len(w)))&255
+o=bytearray(len(d));p=c=0
+t=min(32,len(d)-p)
+for i in range(t):o[p+i]=d[p+i]^b[i]
+```
+
+Those four lines are byte-identical across all 14 samples and all 3 operator templates.
 
 **Measured on the current catalog:** 14 known-malicious samples across 3 operator templates all score 140. 1,314 benign Python files across the standard library, system packages and adversarially-chosen near-misses score 0, except for four fixtures deliberately built to trip exactly one indicator each.
 

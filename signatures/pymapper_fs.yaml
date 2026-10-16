@@ -55,6 +55,10 @@ retrohunt:
   github_queries:
     - '"lambda a,k:bytes(v^k for v in a)" language:python'
     - '"bytes(v^k for v in a)" language:python'
+    - '"return sum((w[i]+p)^i for i in range(len(w)))&255" language:python'
+    - '"o=bytearray(len(d));p=c=0" language:python'
+    - '"t=min(32,len(d)-p)" language:python'
+    - '"for i in range(t):o[p+i]=d[p+i]^b[i]" language:python'
     - '"_rd9r1n" language:python'
     - '"_spd980k" language:python'
     - '"_trtmhwg1q" language:python'

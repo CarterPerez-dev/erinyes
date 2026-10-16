@@ -285,3 +285,76 @@ func TestHuntUnknownSignature(t *testing.T) {
 		t.Errorf("exit code = %d, want %d", code, exitToolError)
 	}
 }
+
+func TestHuntAdHocQueryReplacesDeclaredOnes(t *testing.T) {
+	out, errOut, code := run(t, "hunt", "pymapper-fs-loader", "--dry-run",
+		"-q", `"something else" language:python`)
+	if code != exitOK {
+		t.Fatalf("exit code = %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "something else") {
+		t.Errorf("the ad-hoc query is missing:\n%s", out)
+	}
+	if strings.Contains(out, "_rd9r1n") {
+		t.Errorf("--query must replace the signature's declared queries, not extend them:\n%s", out)
+	}
+	if !strings.Contains(errOut, "scoring with pymapper-fs-loader") {
+		t.Errorf("the tool should say which signature scores the results:\n%s", errOut)
+	}
+}
+
+func TestHuntAdHocQueryIsRepeatable(t *testing.T) {
+	out, _, code := run(t, "hunt", "pymapper-fs-loader", "--dry-run",
+		"-q", `"first" language:python`, "-q", `"second" language:python`)
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	if !strings.Contains(out, "first") || !strings.Contains(out, "second") {
+		t.Errorf("both queries should run:\n%s", out)
+	}
+	if !strings.Contains(out, "2 quer(ies)") {
+		t.Errorf("expected 2 queries:\n%s", out)
+	}
+}
+
+func TestHuntAdHocQueryWithAllIsFineWhenOnlyOneSignatureLoaded(t *testing.T) {
+	_, _, code := run(t, "hunt", "all", "--dry-run", "-q", `"x" language:python`)
+	if code != exitOK {
+		t.Errorf("exit code = %d, want 0: with a single signature loaded there is no ambiguity", code)
+	}
+}
+
+func TestHuntAdHocQueryRejectsAmbiguousScoring(t *testing.T) {
+	dir := t.TempDir()
+	for _, id := range []string{"sig-one", "sig-two"} {
+		body := "id: " + id + "\nversion: 1\nfamily: F\nseverity: low\nconfidence_threshold: 10\n" +
+			"file_patterns: [\"*.py\"]\nindicators:\n  - name: a\n    weight: 10\n    type: literal\n    pattern: 'zzz'\n"
+		if err := os.WriteFile(filepath.Join(dir, id+".yaml"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, _, code := run(t, "--signatures", dir, "hunt", "all", "--dry-run", "-q", `"x" language:python`)
+	if code != exitToolError {
+		t.Errorf("exit code = %d, want %d: two signatures means no single scorer for an ad-hoc query", code, exitToolError)
+	}
+}
+
+func TestHuntDeclaredQueriesAreTemplateIndependent(t *testing.T) {
+	out, _, code := run(t, "hunt", "pymapper-fs-loader", "--dry-run")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	structural := []string{
+		"lambda a,k:bytes(v^k for v in a)",
+		"return sum((w[i]+p)^i for i in range(len(w)))&255",
+		"o=bytearray(len(d));p=c=0",
+		"t=min(32,len(d)-p)",
+		"for i in range(t):o[p+i]=d[p+i]^b[i]",
+	}
+	for _, q := range structural {
+		if !strings.Contains(out, q) {
+			t.Errorf("missing the template-independent query %q: operator-specific literals rot when a campaign is taken down", q)
+		}
+	}
+}
