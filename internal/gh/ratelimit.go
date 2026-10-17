@@ -6,6 +6,7 @@ package gh
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -13,6 +14,21 @@ import (
 )
 
 var ErrRateLimited = errors.New("github rate limit exhausted and retries gave up")
+
+type HTTPError struct {
+	Status int
+	Body   string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("github returned %d: %s", e.Status, e.Body)
+}
+
+func (e *HTTPError) NotFound() bool { return e.Status == http.StatusNotFound }
+
+func (e *HTTPError) NothingToRead() bool {
+	return e.Status == http.StatusNotFound || e.Status == http.StatusConflict
+}
 
 const (
 	SearchRequestsPerMinute = 10

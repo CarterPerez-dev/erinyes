@@ -161,6 +161,7 @@ func newRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		newScanCommand(g),
 		newHuntCommand(g),
+		newSweepCommand(g),
 		newVerifyCommand(g),
 		newSignaturesCommand(g),
 		newVersionCommand(g),

@@ -53,16 +53,17 @@ type SearchResult struct {
 type Notifier func(format string, args ...any)
 
 type Client struct {
-	http      *http.Client
-	token     string
-	ua        string
-	retries   int
-	notify    Notifier
-	cache     *Cache
-	searchLim *Limiter
-	fetchLim  *Limiter
-	base      string
-	raw       string
+	http          *http.Client
+	token         string
+	ua            string
+	retries       int
+	notify        Notifier
+	cache         *Cache
+	searchLim     *Limiter
+	repoSearchLim *Limiter
+	fetchLim      *Limiter
+	base          string
+	raw           string
 
 	mu       sync.Mutex
 	branches map[string]string
@@ -73,16 +74,17 @@ type Client struct {
 }
 
 type Options struct {
-	Token          string
-	UserAgent      string
-	Cache          *Cache
-	RPS            float64
-	Retries        int
-	Notify         Notifier
-	HTTPClient     *http.Client
-	BaseURL        string
-	RawURL         string
-	SearchInterval time.Duration
+	Token              string
+	UserAgent          string
+	Cache              *Cache
+	RPS                float64
+	Retries            int
+	Notify             Notifier
+	HTTPClient         *http.Client
+	BaseURL            string
+	RawURL             string
+	SearchInterval     time.Duration
+	RepoSearchInterval time.Duration
 }
 
 func New(opts Options) (*Client, error) {
@@ -100,7 +102,10 @@ func New(opts Options) (*Client, error) {
 		hc = &http.Client{Timeout: defaultTimeout}
 	}
 	retries := opts.Retries
-	if retries <= 0 {
+	switch {
+	case retries < 0:
+		retries = 0
+	case retries == 0:
 		retries = defaultRetries
 	}
 	ua := opts.UserAgent
@@ -119,6 +124,13 @@ func New(opts Options) (*Client, error) {
 	searchLim := NewLimiter(opts.RPS)
 	searchLim.SetMinInterval(searchInterval)
 
+	repoSearchInterval := opts.RepoSearchInterval
+	if repoSearchInterval == 0 {
+		repoSearchInterval = minRepoSearchInterval
+	}
+	repoSearchLim := NewLimiter(opts.RPS)
+	repoSearchLim.SetMinInterval(repoSearchInterval)
+
 	base := opts.BaseURL
 	if base == "" {
 		base = apiBase
@@ -129,17 +141,18 @@ func New(opts Options) (*Client, error) {
 	}
 
 	return &Client{
-		http:      hc,
-		token:     token,
-		ua:        ua,
-		retries:   retries,
-		notify:    notify,
-		cache:     opts.Cache,
-		searchLim: searchLim,
-		fetchLim:  NewLimiter(opts.RPS),
-		base:      strings.TrimRight(base, "/"),
-		raw:       strings.TrimRight(raw, "/"),
-		branches:  make(map[string]string),
+		http:          hc,
+		token:         token,
+		ua:            ua,
+		retries:       retries,
+		notify:        notify,
+		cache:         opts.Cache,
+		searchLim:     searchLim,
+		fetchLim:      NewLimiter(opts.RPS),
+		repoSearchLim: repoSearchLim,
+		base:          strings.TrimRight(base, "/"),
+		raw:           strings.TrimRight(raw, "/"),
+		branches:      make(map[string]string),
 	}, nil
 }
 
@@ -245,7 +258,7 @@ func (c *Client) do(ctx context.Context, req *http.Request, lim *Limiter) ([]byt
 			return body, errors.New("github rejected the token (401): check $GITHUB_TOKEN or run `gh auth login`")
 
 		case resp.StatusCode >= 400:
-			return body, fmt.Errorf("github returned %d: %s", resp.StatusCode, snippet(body))
+			return body, &HTTPError{Status: resp.StatusCode, Body: snippet(body)}
 		}
 
 		if rl.Exhausted() && rl.Until() > 0 {

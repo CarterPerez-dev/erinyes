@@ -358,3 +358,43 @@ func TestHuntDeclaredQueriesAreTemplateIndependent(t *testing.T) {
 		}
 	}
 }
+
+func TestSweepNeedsATarget(t *testing.T) {
+	_, _, code := run(t, "sweep")
+	if code != exitToolError {
+		t.Errorf("exit code = %d, want %d when neither a target nor --query is given", code, exitToolError)
+	}
+}
+
+func TestSweepRejectsTargetAndQueryTogether(t *testing.T) {
+	_, _, code := run(t, "sweep", "someowner", "--query", "created:2026-01-02")
+	if code != exitToolError {
+		t.Errorf("exit code = %d, want %d: a target and --query are mutually exclusive", code, exitToolError)
+	}
+}
+
+func TestSweepRejectsTooManyArgs(t *testing.T) {
+	_, _, code := run(t, "sweep", "a/b", "c/d")
+	if code != exitToolError {
+		t.Errorf("exit code = %d, want %d", code, exitToolError)
+	}
+}
+
+func TestSweepIsRegisteredWithHelpfulText(t *testing.T) {
+	out, _, code := run(t, "sweep", "--help")
+	if code != exitOK {
+		t.Fatalf("exit code = %d", code)
+	}
+	for _, want := range []string{"--query", "--include-forks", "--dry-run", "git tree"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("sweep --help is missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRootListsSweep(t *testing.T) {
+	out, _, _ := run(t, "--help")
+	if !strings.Contains(out, "sweep") {
+		t.Errorf("sweep is not listed on the root command:\n%s", out)
+	}
+}

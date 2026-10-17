@@ -101,6 +101,13 @@ scan path:
 hunt sig="pymapper-fs-loader":
     go run {{pkg}} hunt {{sig}}
 
+# Scan every repo an owner has, or every repo matching a GitHub repo search.
+sweep target:
+    go run {{pkg}} sweep {{target}}
+
+sweep-query query:
+    go run {{pkg}} sweep --query "{{query}}"
+
 sarif path out="erinyes.sarif":
     go run {{pkg}} scan {{path}} --format sarif --output {{out}}
     @echo "upload with: gh api -X POST /repos/OWNER/REPO/code-scanning/sarifs -f commit_sha=... -f ref=... -f sarif=@{{out}}"

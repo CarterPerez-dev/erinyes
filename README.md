@@ -101,6 +101,23 @@ Every blob it downloads is cached forever, keyed by its git blob SHA. The second
 0 api call(s), 0 raw fetch(es), 14 cache hit(s)
 ```
 
+### Sweep whole repositories
+
+`hunt` asks GitHub's code index what it already knows. `sweep` reads the repositories themselves — it enumerates them, walks each git tree, and scans every file matching a signature's `file_patterns`.
+
+```bash
+erinyes sweep someowner                                  # every repo that owner has
+erinyes sweep someowner/somerepo                         # one repo
+erinyes sweep --query 'created:2026-01-02 pushed:2026-09-20'
+erinyes sweep --query 'language:python stars:>100' --limit 50 --dry-run
+```
+
+This exists because the code index is not the territory. A repository with a freshly committed payload, or one GitHub simply never indexed, is invisible to `hunt` and plainly visible to `sweep`.
+
+That is not hypothetical. On the PyMapper campaign, nine different structural code-search queries all returned the same 12 files and nothing more. Sweeping a *repository* search on the campaign's own metadata — the twelve known repos were all created `2026-01-02` and all pushed `2026-09-20`, an 8.5-month dormancy that is itself the anomaly — returned 72 repositories and four more trojans. One of them had **8 stars**, so no popularity filter would have found it either.
+
+Repository search is capped at 30 requests per minute rather than code search's 10, and blobs are cached by their git SHA, so a re-sweep is nearly free.
+
 ### Check a hash
 
 ```bash
@@ -203,6 +220,17 @@ Those four lines are byte-identical across all 14 samples and all 3 operator tem
 ---
 
 ## Output formats
+
+### Which command to reach for
+
+| You have | Use | Why |
+|---|---|---|
+| a local checkout or file | `scan` | offline, instant |
+| a signature with search-friendly literals | `hunt` | cheap, wide, index-limited |
+| an owner, a repo, or a metadata pattern | `sweep` | reads repos directly, reaches what the index missed |
+| a hash | `verify` | known-sample lookup |
+
+---
 
 | Format | Flag | For |
 |---|---|---|

@@ -21,30 +21,40 @@ Dependencies flow one way: `cmd` -> `report` -> `scan` -> `sig`. `gh` depends on
 ## The data path
 
 ```
-                    scan                                hunt
-                     |                                    |
-            walk the filesystem                  github code search
-                     |                                    |
-            filter by file_patterns             dedupe by (repo, path)
-                     |                                    |
-                     |                            blob cache lookup
-                     |                                    |
-                     |                        raw fetch -> verify blob sha
-                     |                            (fallback: blobs API)
-                     |                                    |
-                     +--------------> bytes <-------------+
-                                        |
-                             sha256, then every matching
-                              signature's indicators
-                                        |
-                              sum weights -> verdict
-                                        |
-                     +------------------+------------------+
-                     |          |             |            |
-                    cli       json        markdown       sarif
+         scan                 hunt                      sweep
+          |                     |                          |
+   walk the filesystem   github CODE search      github REPOSITORY search
+          |                     |                  or an owner's repo list
+          |                     |                          |
+          |             dedupe by (repo, path)      walk each git tree
+          |                     |                          |
+          |                     +----------+---------------+
+          |                                |
+          |                      blob cache lookup (git blob sha)
+          |                                |
+          |                    raw fetch -> verify blob sha
+          |                       (fallback: blobs API)
+          |                                |
+          +-------------> bytes <----------+
+                            |
+                 sha256, then every matching
+                  signature's indicators
+                            |
+                  sum weights -> verdict
+                            |
+         +----------+-------+--------+----------+
+        cli       json          markdown      sarif
 ```
 
-Both commands converge on the same `scan.ScanBytes`. A hunt is a scan whose bytes came from GitHub, which is why the verdict for a file is identical whether you cloned the repo or hunted it.
+All three commands converge on the same `scan.ScanBytes`. A hunt or a sweep is a scan whose bytes came from GitHub, which is why the verdict for a file is identical whether you cloned the repo, hunted it, or swept it.
+
+### hunt and sweep answer different questions
+
+`hunt` asks the code index what it knows. It is cheap and wide, and it is bounded by what GitHub chose to index — on the PyMapper campaign, nine distinct structural queries all returned the same 12 files.
+
+`sweep` reads repositories directly. It costs one tree call per repository plus one fetch per uncached candidate blob, and it sees files the index never covered. The same campaign yielded four more trojans when swept by its metadata pattern rather than its code.
+
+Neither replaces the other. The index finds things you have no other handle on; the tree finds things the index forgot.
 
 ---
 
