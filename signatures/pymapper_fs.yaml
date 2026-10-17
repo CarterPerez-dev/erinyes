@@ -69,7 +69,7 @@ known_hashes:
     label: "kloxeld/xscrape xscrape/fs.py (operator A template _rd9r1n)"
     first_seen: 2026-10-14
   - sha256: 49934c28b909ab683e8bd8046b35a54d620f5362063184fbcd913c936fdda802
-    label: "shared operator A stage-1 across 8 trojan repos (walletool, KawaiiGPT, Pharos-Testnet-Bot, web3-decoder, mflowgen, sora2-watermark-remover-enchanted, Trading-Bot-for-Binance-Future, ecdsa-private-key-recovery)"
+    label: "shared operator A stage-1 across 12 trojan repos (walletool, KawaiiGPT, Pharos-Testnet-Bot, web3-decoder, mflowgen, sora2-watermark-remover-enchanted, sora2-watermark-remover-web-gui, Trading-Bot-for-Binance-Future, ecdsa-private-key-recovery, NaorisProtocol-bot, spyder-osint, openfi-bot, web3-flashbots), all created 2026-01-02 and weaponized 2026-09-20"
     first_seen: 2026-10-14
   - sha256: 32b577f5a1c356d3b0259e660743a442cad1e80a4532133f3f406c492892aaae
     label: "hkqr/my-free-code my_free_code/core/point.py (operator A template _rd9r1n)"
