@@ -20,7 +20,7 @@ description: >
   must rest on infrastructure (C2 hosts, bearer tokens, embedded-PE SHA)
   rather than template literals. Every indicator here matches structure.
 references:
-  - "Operation CLAUDEIUS, Perez & Claude, 2026"
+  - "Operation CLAUDEIUS, Perez, 2026"
   - "hkqr dev-environment forensics: analysis/HKQR-OPSEC-FINDINGS.md"
   - "Infrastructure observed in hkqr/my-free-code plaintext commits (2026-10):"
   - "  http://85.121.179.7:8000  (Operator B admin plane; hkqr is a separate tenant with his own bearer)"

@@ -1,44 +1,37 @@
 <!-- ©AngelaMos | 2026 -->
 <!-- README.md -->
 
-# Erinyes
-
-**Erinyes hunts obfuscated malware hiding in open source.**
-
-It applies a catalog of YAML signatures to source files and tells you, with evidence, whether a file is a packed loader wearing a legitimate project's clothes. Point it at a checkout, or point it at all of GitHub.
-
-Named after the Greek goddesses of vengeance who hunted down crimes human law could not touch. That is the job description.
-
-```
-SCORE  VERDICT                       FILE
-------------------------------------------------------------------------------
-  140  MALICIOUS (PyMapper, known)   kloxeld/xscrape:xscrape/fs.py
-         + known hash  kloxeld/xscrape xscrape/fs.py (operator A template _rd9r1n)
-         + xor_decoder_lambda x1  (+40)
-         + import_via_xor_decoder x4  (+25)
-         + rolling_xor_checksum x5  (+30)
-         + hmac_keystream_block x1  (+20)
-         + embedded_encrypted_blob x16  (+25)
-
-Scanned: 41 files
-Flagged: 1
-Signatures: pymapper-fs-loader@1
-Elapsed: 2ms
+```json
+▓█████  ██▀███   ██▓ ███▄    █▓██   ██▓▓█████   ██████
+▓█   ▀ ▓██ ▒ ██▒▓██▒ ██ ▀█   █ ▒██  ██▒▓█   ▀ ▒██    ▒
+▒███   ▓██ ░▄█ ▒▒██▒▓██  ▀█ ██▒ ▒██ ██░▒███   ░ ▓██▄
+▒▓█  ▄ ▒██▀▀█▄  ░██░▓██▒  ▐▌██▒ ░ ▐██▓░▒▓█  ▄   ▒   ██▒
+░▒████▒░██▓ ▒██▒░██░▒██░   ▓██░ ░ ██▒▓░░▒████▒▒██████▒▒
+░░ ▒░ ░░ ▒▓ ░▒▓░░▓  ░ ▒░   ▒ ▒   ██▒▒▒ ░░ ▒░ ░▒ ▒▓▒ ▒ ░
+ ░ ░  ░  ░▒ ░ ▒░ ▒ ░░ ░░   ░ ▒░▓██ ░▒░  ░ ░  ░░ ░▒  ░ ░
+   ░     ░░   ░  ▒ ░   ░   ░ ░ ▒ ▒ ░░     ░   ░  ░  ░
+   ░  ░   ░      ░           ░ ░ ░        ░  ░      ░
+                               ░
 ```
 
----
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
+[![License: AGPLv3](https://img.shields.io/badge/License-AGPL_v3-purple.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Docs](https://img.shields.io/badge/Docs-DOCS.md-2A6DB2?style=flat)](DOCS.md)
+[![GitHub Code Search](https://img.shields.io/badge/GitHub-code%20search-181717?style=flat&logo=github&logoColor=white)](https://docs.github.com/en/rest/search/search#search-code)
 
-## What this is, and what it is not
+> YAML-signature-driven hunter for obfuscated malware hiding in open source. Scan a checkout, retrohunt code search, sweep every file in a target's repos.
 
-Erinyes is not a vulnerability scanner. CodeQL, Semgrep and Snyk look for bugs in code that is trying to be correct. Erinyes looks for code that is trying to be *invisible*: a 28KB "logger.py" whose whole body is a one-line XOR lambda, four decoded imports, and sixteen arrays of integers that unpack into a reflective PE loader.
+*This is the quick overview. Full usage, flags, output formats, signature authoring and sweep tuning are in [DOCS.md](DOCS.md).*
 
-Different threat model, different tool.
+## What It Does
 
-It is also not a sandbox, not a disassembler, not an AV engine, and not an incident-response platform. It reads bytes, matches structure, scores, and reports. That is the entire scope, on purpose.
-
-**Scan mode makes zero network calls.** Ever. You can run it on an airgapped box over a sample you do not trust.
-
----
+- YAML signature catalog with per-indicator scoring and declared thresholds
+- Three hunt modes: `scan` (local, zero network), `hunt` (GitHub code search), `sweep` (whole-repo tree walk via GitHub Trees API)
+- GitHub metadata-pivot sweeps (`--query 'created:X pushed:Y'`) that catch samples code search never indexes
+- Output as colored CLI, JSON, Markdown, or SARIF v2.1.0
+- Known-malicious hash catalog for instant verdicts on already-seen samples
+- Signature linter + validator built in (`signatures validate`, `signatures lint`)
+- No telemetry. No phone home. Scan mode makes zero network calls, ever.
 
 ## Install
 
@@ -46,268 +39,69 @@ It is also not a sandbox, not a disassembler, not an AV engine, and not an incid
 curl -fsSL https://angelamos.com/erinyes/install.sh | bash
 ```
 
-One command, from nothing to `erinyes` on your PATH. It prefers a verified release binary and falls back to building from source, installing Go first if you do not have it.
-
-Other ways in:
+Or with Go:
 
 ```bash
-go install github.com/CarterPerez-dev/erinyes/cmd/erinyes@latest   # if you already have Go
-git clone https://github.com/CarterPerez-dev/erinyes && cd erinyes && just build
+go install github.com/CarterPerez-dev/erinyes/cmd/erinyes@latest
 ```
 
-Removing it is the mirror image:
+## Quick Start
 
 ```bash
-curl -fsSL https://angelamos.com/erinyes/uninstall.sh | bash
+erinyes scan .
 ```
 
----
+> [!TIP]
+> This project uses [`just`](https://github.com/casey/just) as a command runner. Type `just` from the repo root to see every available recipe.
+>
+> Install: `curl -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin`
 
-## Use
+## Commands
 
-### Scan something local
-
-```bash
-erinyes scan ./suspicious-repo
-erinyes scan ./one_file.py
-erinyes scan ~/src --format sarif --output results.sarif
-```
-
-Walks the tree, applies every signature whose `file_patterns` match, prints one row per file. Clean files are hidden unless you pass `-v`. Exits `1` if anything scored at or above its signature's threshold, so it drops straight into CI.
-
-### Retrohunt GitHub
-
-```bash
-export GITHUB_TOKEN=...            # or just be logged into `gh`
-erinyes hunt pymapper-fs-loader
-erinyes hunt all --format markdown --output hunt.md
-erinyes hunt pymapper-fs-loader --limit 100 --dry-run
-```
-
-Runs the signature's declared code-search queries, pulls every result, scans it locally.
-
-To test a hypothesis without editing YAML, supply your own queries. They replace the signature's declared ones, and results are still scored by that signature's indicators:
-
-```bash
-erinyes hunt pymapper-fs-loader -q '"p+=t;c+=1" language:python'
-erinyes hunt pymapper-fs-loader -q '"first" language:python' -q '"second" language:python'
-```
-
-That is the loop for finding an operator nobody has characterized yet: guess at an invariant, hunt it, see what scores. GitHub caps code search at 10 requests per minute, so a wide hunt is paced rather than fast — the tool respects that cap instead of getting your token throttled.
-
-Every blob it downloads is cached forever, keyed by its git blob SHA. The second run of the same hunt costs zero API calls:
-
-```
-0 api call(s), 0 raw fetch(es), 14 cache hit(s)
-```
-
-### Sweep whole repositories
-
-`hunt` asks GitHub's code index what it already knows. `sweep` reads the repositories themselves — it enumerates them, walks each git tree, and scans every file matching a signature's `file_patterns`.
-
-```bash
-erinyes sweep someowner                                  # every repo that owner has
-erinyes sweep someowner/somerepo                         # one repo
-erinyes sweep --query 'created:2026-01-02 pushed:2026-09-20'
-erinyes sweep --query 'language:python stars:>100' --limit 50 --dry-run
-```
-
-This exists because the code index is not the territory. A repository with a freshly committed payload, or one GitHub simply never indexed, is invisible to `hunt` and plainly visible to `sweep`.
-
-That is not hypothetical. On the PyMapper campaign, nine different structural code-search queries all returned the same 12 files and nothing more. Sweeping a *repository* search on the campaign's own metadata — the twelve known repos were all created `2026-01-02` and all pushed `2026-09-20`, an 8.5-month dormancy that is itself the anomaly — returned 72 repositories and four more trojans. One of them had **8 stars**, so no popularity filter would have found it either.
-
-Repository search is capped at 30 requests per minute rather than code search's 10, and blobs are cached by their git SHA, so a re-sweep is nearly free.
-
-### Check a hash
-
-```bash
-erinyes verify 72d765b9be76ba841ec95548368bf9a67c9ea3823ae064d8d0beff66c4598bd9
-erinyes verify ./downloaded.py
-```
-
-A miss is not an all-clear and the tool says so out loud.
-
-### Inspect the catalog
-
-```bash
-erinyes signatures list
-erinyes signatures show pymapper-fs-loader
-erinyes signatures validate ./my-signatures/
-```
-
----
-
-## How scoring works
-
-Every signature is a set of weighted indicators. A file's score is the sum of the weights of the indicators that matched *at least once* — match count is reported as evidence but never multiplies the weight, because a packer that emits sixteen blobs is not sixteen times more malicious than one that emits one.
-
-| Score | Verdict |
-|---|---|
-| `>= confidence_threshold` | **MALICIOUS** |
-| `>= confidence_threshold / 2` | **SUSPICIOUS** |
-| below that | clean |
-
-The design rule that matters: **no single indicator may clear the threshold on its own.** `pymapper-fs-loader` has a threshold of 60 and its heaviest indicator is worth 40. A file with a bare XOR lambda and nothing else lands in the suspicious band, which is the honest answer. There is a test that fails the build if anyone ever adds an indicator heavy enough to convict alone.
-
-A known-malicious hash forces a MALICIOUS verdict but **does not** replace the score. If a file we know is malware stops matching the indicators, you need to see that — it means the operator re-rolled their packer and your signature is going stale.
-
----
-
-## Writing a signature
-
-Signatures are YAML. The full schema is in [docs/signature-format.md](docs/signature-format.md); here is the shape:
-
-```yaml
-id: my-loader
-version: 1
-family: SomeFamily
-severity: critical
-confidence_threshold: 60
-file_patterns: ["*.py"]
-
-indicators:
-  - name: xor_decoder_lambda
-    weight: 40
-    type: regex
-    pattern: 'lambda\s+\w+\s*,\s*\w+\s*:\s*bytes\(\s*\w+\s*\^\s*\w+\s+for\s+\w+\s+in\s+\w+\s*\)'
-
-retrohunt:
-  github_queries:
-    - '"bytes(v^k for v in a)" language:python'
-
-known_hashes:
-  - sha256: 72d765b9...
-    label: where this sample came from
-```
-
-Lint it before you ship it:
-
-```bash
-erinyes signatures validate ./my-signature.yaml
-```
-
-Validation is strict on purpose: unknown YAML keys are errors, patterns must compile as Go RE2, and a signature whose weights cannot physically reach its own threshold is rejected rather than silently never firing.
-
-Drop user signatures in `~/.config/erinyes/signatures/*.yaml` and they overlay the builtin catalog. Same `id` replaces the builtin one.
-
----
-
-## Why the indicators match structure, not strings
-
-The PyMapper stage-1 loader assigns itself a random variable template per operator. Three seen in the wild so far:
-
-```python
-_rd9r1n   = lambda a,k:bytes(v^k for v in a)     # operator A
-_spd980k  = lambda a,k:bytes(v^k for v in a)     # operator B
-_trtmhwg1q= lambda a,k:bytes(v^k for v in a)     # operator ?
-```
-
-Grepping for `_rd9r1n` finds one operator's campaign. Matching the *shape* of the decoder finds all of them, including operators whose template nobody has seen yet. Every shipped indicator is anchored on structure for exactly this reason, and the patterns tolerate inserted whitespace so that reformatting the payload is not a one-keystroke evasion.
-
-Queries on a variable template rot the moment a campaign goes down. `"_trtmhwg1q"` returned two results on 2026-10-14 and zero on 2026-10-16. The structural queries kept returning the rest of the family, which is why most of the shipped queries are anchored on code the packer never randomizes:
-
-```
-return sum((w[i]+p)^i for i in range(len(w)))&255
-o=bytearray(len(d));p=c=0
-t=min(32,len(d)-p)
-for i in range(t):o[p+i]=d[p+i]^b[i]
-```
-
-Those four lines are byte-identical across all 14 samples and all 3 operator templates.
-
-**Measured on the current catalog:** 14 known-malicious samples across 3 operator templates all score 140. 1,314 benign Python files across the standard library, system packages and adversarially-chosen near-misses score 0, except for four fixtures deliberately built to trip exactly one indicator each.
-
----
-
-## Output formats
-
-### Which command to reach for
-
-| You have | Use | Why |
+| Command | What it does | Just recipe |
 |---|---|---|
-| a local checkout or file | `scan` | offline, instant |
-| a signature with search-friendly literals | `hunt` | cheap, wide, index-limited |
-| an owner, a repo, or a metadata pattern | `sweep` | reads repos directly, reaches what the index missed |
-| a hash | `verify` | known-sample lookup |
+| `erinyes scan <path>` | Scan a file or directory against the signature catalog (offline) | `just scan <path>` |
+| `erinyes hunt <signature>` | Retrohunt GitHub code search for new instances of a signature | `just hunt <sig>` |
+| `erinyes sweep <owner>` | Walk every file in every repo for a GitHub owner | `just sweep <owner>` |
+| `erinyes sweep --query '<q>'` | Metadata-pivot sweep on a GitHub repo search query | `just sweep-query '<q>'` |
+| `erinyes verify <hash\|file>` | Check a hash or a file against the known-malicious catalog | — |
+| `erinyes signatures list` | List the loaded signature catalog | `just validate` (lint + validate) |
+| `erinyes signatures validate <dir>` | Lint and validate signature YAML files | — |
+| `erinyes version` | Print tool version, catalog version, Go runtime | — |
 
----
+**Common flags:** `--format {cli,json,markdown,sarif}`, `--output <file>`, `--signatures <dir>`, `--verbose`, `--no-color`
 
-| Format | Flag | For |
+Full flag reference, env-var contract, GitHub token scopes, and sweep-rate tuning are in [DOCS.md](DOCS.md).
+
+## Build & Dev
+
+| Task | Just recipe | Raw command |
 |---|---|---|
-| CLI | *(default)* | reading it yourself |
-| JSON | `--format json` | piping into anything |
-| Markdown | `--format markdown` | reports and papers |
-| SARIF 2.1.0 | `--format sarif` | GitHub code scanning, Codacy, Sonar |
+| Build local binary | `just build` | `CGO_ENABLED=0 go build -trimpath -o erinyes ./cmd/erinyes` |
+| Install to `$GOBIN` | `just install` | `go install -trimpath ./cmd/erinyes` |
+| Cross-compile all platforms | `just build-all` | — |
+| Package release archives + checksums | `just package` | — |
+| Run full test suite with race | `just test` | `go test ./... -race` |
+| Fast test (no race) | `just test-fast` | `go test ./...` |
+| Coverage report | `just cover` | — |
+| Benchmarks | `just bench` | — |
+| Format + tidy | `just fmt` | `gofmt -w . && go mod tidy` |
+| Lint (golangci-lint) | `just lint` | — |
+| Vet | `just vet` | `go vet ./...` |
+| All checks (fmt + vet + lint + test) | `just check` | — |
+| Signature catalog validation | `just validate` | `go run ./cmd/erinyes signatures validate ./signatures` |
+| Regression against a local corpus | `just corpus <dir>` | — |
+| SARIF scan + upload hint | `just sarif <path>` | — |
+| Clean build artifacts | `just clean` | — |
+| Installer syntax check | `just installer-check` | — |
 
-The SARIF output validates against the official OASIS 2.1.0 schema and anchors local paths to `SRCROOT` with `originalUriBaseIds`, so GitHub's Security tab resolves them correctly.
+## Status
 
-```bash
-erinyes scan . --format sarif --output erinyes.sarif
-gh api -X POST /repos/OWNER/REPO/code-scanning/sarifs \
-  -f commit_sha="$(git rev-parse HEAD)" -f ref=refs/heads/main \
-  -f sarif="$(gzip -c erinyes.sarif | base64 -w0)"
-```
+Erinyes is actively developed. The signature catalog is intentionally small and tight — every rule in `signatures/` is derived from a confirmed sample, not from pattern-guessing. More signatures land as new families are reverse-engineered.
 
----
-
-## Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | nothing at or above threshold |
-| `1` | something was flagged |
-| `2` | tool error (bad signature, auth failure, unreadable path) |
-| `3` | rate limited, gave up |
-
----
-
-## Configuration
-
-Optional, at `~/.config/erinyes/config.yaml` (`%APPDATA%\erinyes` on Windows):
-
-```yaml
-format: cli
-cache_dir: ~/.cache/erinyes
-signatures_dir: ~/.config/erinyes/signatures
-no_color: false
-```
-
-Unknown keys are rejected rather than ignored, so a typo tells you instead of silently doing nothing. `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` are respected.
-
----
-
-## Development
-
-```bash
-just            # list recipes
-just build      # single binary
-just check      # fmt, vet, lint, test with -race
-just bench      # scan throughput
-just build-all  # linux/darwin amd64+arm64, windows amd64
-just package    # tarballs, zip, checksums.txt
-```
-
-Two fixture sets back the test suite:
-
-- `testdata/known_malicious/` — **synthetic** structural reproductions of the stage-1 loader, one per observed operator template. They reproduce the packer's shape with random bytes: no key material, no payload, no entrypoint. They score 140, same as the real thing. Live malware is deliberately not committed to this repository.
-- `testdata/known_benign/` — files that each trip exactly one indicator on purpose, proving no single indicator can convict.
-
-If you hold a corpus of real samples, point the opt-in regression at it:
-
-```bash
-just corpus /path/to/real/samples
-```
-
-It asserts every sample is flagged, scores at least 140, and is covered by a shipped `known_hashes` entry — which is how you catch a signature going stale against a live family.
-
----
-
-## Provenance
-
-The seed signature comes from Operation CLAUDEIUS, a full-chain reverse engineering of the PyMapper malware-as-a-service platform and its five operators. The stage-1 loader it detects was found in 14 trojanized GitHub repositories masquerading as AI tooling, crypto bots, pentest PoCs and general developer utilities.
-
----
+Signature authoring guide: [`docs/signature-format.md`](docs/signature-format.md).
+Architecture overview: [`docs/architecture.md`](docs/architecture.md).
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE).
+AGPL 3.0 — see [LICENSE](LICENSE).

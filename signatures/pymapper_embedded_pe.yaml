@@ -22,7 +22,7 @@ description: >
   gunkonchi/xscrape commit of the same window. See the note on
   pymapper-fs-loader for template-cycling.
 references:
-  - "Operation CLAUDEIUS, Perez & Claude, 2026"
+  - "Operation CLAUDEIUS, Perez, 2026"
   - "First observed carrier: hkqr/my-free-code my_free_code/cli/point.py (2026-10-15)"
   - "Second observed carrier: gunkonchi/xscrape xscrape/fs.py (2026-10-15)"
   - "Embedded stage-4 PE SHA-256: b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd"
