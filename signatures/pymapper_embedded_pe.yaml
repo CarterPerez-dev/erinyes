@@ -90,3 +90,6 @@ known_hashes:
   - sha256: f6b3e69758b54b04848137dc3b112f0f228268014e734b881cdab2c7c7b86129
     label: "embedded-PE stage-1 shared BYTE-IDENTICALLY across 5 trojan repos pushed on the 2026-10-15 coordinated rollout (hkqr/my-free-code cli/point.py, letorig/video-generator-client src/video_gen/seedance.py, gunkonchi/xscrape xscrape/fs.py, nahrek/polyledger polyledger/polyledger.py, caxete/crypto-tax-calculator src/report.py); size 1,142,725 bytes; embedded stage-4 PE sha256 b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd pointing at http://194.102.104.223:8093; this is a coordinated multi-sockpuppet deployment, not progressive migration — one build, one day, five repos"
     first_seen: 2026-10-15
+  - sha256: 0c9bc08fd70ea36a11ca3aa2a590da141d2edf0f588b446ed2b4230c40c6ae62
+    label: "kurelas/text-humanizer src/services/humanizer.py — 6th embedded-PE carrier, lighter 631 KB wrapper around the same embedded stage-4 PE blob (byte-identical 1,125,036-char base64 to the Oct 15 rollout). Lure name was predicted from the caxete 'claude-engineer / text-humanizer' paste accident on 2026-10-17 — forward-looking IOC discovery."
+    first_seen: 2026-10-07

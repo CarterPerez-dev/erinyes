@@ -162,6 +162,7 @@ func newRootCommand() *cobra.Command {
 		newScanCommand(g),
 		newHuntCommand(g),
 		newSweepCommand(g),
+		newWatchCommand(g),
 		newVerifyCommand(g),
 		newSignaturesCommand(g),
 		newVersionCommand(g),

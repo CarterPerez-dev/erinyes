@@ -1,0 +1,11 @@
+# ©AngelaMos | 2026
+# active-sockpuppets.txt
+#
+# The 6 PyMapper embedded-PE repos as of 2026-10-17.
+# Feed to `erinyes watch -f active-sockpuppets.txt --interval 15 --telegram-token $TELEGRAM_BOT_TOKEN --telegram-chat $TELEGRAM_CHAT_ID`.
+hkqr/my-free-code
+letorig/video-generator-client
+nahrek/polyledger
+gunkonchi/xscrape
+caxete/crypto-tax-calculator
+kurelas/text-humanizer
