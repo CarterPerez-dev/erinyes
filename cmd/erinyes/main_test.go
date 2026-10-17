@@ -149,7 +149,7 @@ func TestSignaturesList(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit code = %d", code)
 	}
-	for _, want := range []string{"pymapper-fs-loader", "PyMapper", "critical", "1 signature(s) loaded"} {
+	for _, want := range []string{"pymapper-fs-loader", "PyMapper", "critical", "2 signature(s) loaded"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output is missing %q:\n%s", want, out)
 		}
@@ -258,7 +258,7 @@ func TestVersionReportsCatalog(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit code = %d", code)
 	}
-	for _, want := range []string{"erinyes", "catalog", "go ", "signatures 1 loaded"} {
+	for _, want := range []string{"erinyes", "catalog", "go ", "signatures 2 loaded"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("version output is missing %q:\n%s", want, out)
 		}
@@ -317,10 +317,10 @@ func TestHuntAdHocQueryIsRepeatable(t *testing.T) {
 	}
 }
 
-func TestHuntAdHocQueryWithAllIsFineWhenOnlyOneSignatureLoaded(t *testing.T) {
+func TestHuntAdHocQueryAgainstAllIsAmbiguous(t *testing.T) {
 	_, _, code := run(t, "hunt", "all", "--dry-run", "-q", `"x" language:python`)
-	if code != exitOK {
-		t.Errorf("exit code = %d, want 0: with a single signature loaded there is no ambiguity", code)
+	if code != exitToolError {
+		t.Errorf("exit code = %d, want %d: ad-hoc --query needs one scorer and the builtin catalog has multiple", code, exitToolError)
 	}
 }
 

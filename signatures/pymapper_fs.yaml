@@ -14,11 +14,22 @@ description: >
   Stage-1 Python loader from the PyMapper malware-as-a-service platform.
   Uses a one-line XOR lambda to decode imports and encryption keys, then an
   HMAC-SHA256 keystream decrypts an embedded blob to reveal a reflective PE
-  loader. Observed across at least five operators who each re-roll the
-  variable-name template, so every indicator matches structure rather than
-  literal identifiers.
+  loader. The variable-name template (_rd9r1n, _spd980k, _trtmhwg1q, _nt6xwy)
+  is NOT an operator fingerprint — one developer (hkqr) was observed cycling
+  through four templates on the same file in three weeks, so attribution
+  must rest on infrastructure (C2 hosts, bearer tokens, embedded-PE SHA)
+  rather than template literals. Every indicator here matches structure.
 references:
   - "Operation CLAUDEIUS, Perez & Claude, 2026"
+  - "hkqr dev-environment forensics: analysis/HKQR-OPSEC-FINDINGS.md"
+  - "C2 hosts observed in hkqr/my-free-code plaintext commits (2026-10):"
+  - "  http://85.121.179.7:8000  (Operator B admin plane, PyMapper v0.5 client)"
+  - "  91.92.47.134:8765         (new, port matches PyMapper implant plane)"
+  - "  172.233.51.81:8765        (new, Linode 172.233/8 — same hoster family as Op A)"
+  - "Bearer token (HMAC-SHA256 signing key):"
+  - "  e6adfdbe87e1d8ae9afc2856e6d39e5adb7fffa6fd879cff19bcb5052929a332"
+  - "Stage-2 PE SHA-256 pulled from Op B /pe/hash/{sha}:"
+  - "  464bc0bd3e716d5276909c4b2cf0817f8579d5fd4bcc784557b74ec6f66fa403"
 
 indicators:
   - name: xor_decoder_lambda
@@ -62,6 +73,9 @@ retrohunt:
     - '"_rd9r1n" language:python'
     - '"_spd980k" language:python'
     - '"_trtmhwg1q" language:python'
+    - '"_nt6xwy" language:python'
+    - '"X-PyMapper-Client" language:python'
+    - '"pymapper-client/0.5" language:python'
   rate_limit_rps: 1.0
 
 known_hashes:

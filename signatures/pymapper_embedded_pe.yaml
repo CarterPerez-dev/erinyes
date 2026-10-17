@@ -1,0 +1,92 @@
+# ©AngelaMos | 2026
+# pymapper_embedded_pe.yaml
+
+id: pymapper-embedded-pe
+version: 1
+family: PyMapper
+severity: critical
+confidence_threshold: 60
+file_patterns: ["*.py"]
+
+first_seen: 2026-10-15
+contributor: carterperez-dev
+description: >
+  Stage-1 Python loader, embedded-PE variant. The operator's newer architecture
+  skips the network fetch of stage-2 and stage-3 and embeds the final stage-4
+  Windows PE directly in the Python file as a ~1 MB base64 blob (the "TVp" /
+  "TVo" MZ-header prefix). A reflective ctypes-based loader in the same file
+  maps the PE in-memory and persists via winreg, with no proliv4.exe ever
+  written to disk and only one C2 (:8093 serving stage-5) needed to run the
+  full chain.
+  First seen in hkqr/my-free-code commit 1a7bb76 (2026-10-15) and
+  gunkonchi/xscrape commit of the same window. See the note on
+  pymapper-fs-loader for template-cycling.
+references:
+  - "Operation CLAUDEIUS, Perez & Claude, 2026"
+  - "First observed carrier: hkqr/my-free-code my_free_code/cli/point.py (2026-10-15)"
+  - "Second observed carrier: gunkonchi/xscrape xscrape/fs.py (2026-10-15)"
+  - "Embedded stage-4 PE SHA-256: b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd"
+  - "Downstream stage-5 C2: http://194.102.104.223:8093"
+  - "Bearer: k_2bd3fc9c76..., payload id: p_ddafdf3846ca91f112"
+
+indicators:
+  # The operator's own comment marker that brackets the base64 PE blob.
+  # Extremely distinctive on its own but easily removed, so paired with
+  # structural markers below.
+  - name: pe_b64_begin_marker
+    weight: 50
+    type: regex
+    pattern: '#\s*>>>\s*PE_B64_BEGIN'
+
+  # The ENCODED_PE assignment followed by a base64 PE header. TVp = MZx
+  # (64-bit PE), TVo = MZn (32-bit PE). Catches hand-renamed variables too
+  # if they still assign a long base64 PE as the only triple-quoted string
+  # of this shape.
+  - name: encoded_pe_assignment
+    weight: 40
+    type: regex
+    pattern: '[A-Z_][A-Z0-9_]*\s*=\s*"""\s*TV[pqo]'
+
+  # A long base64 PE blob embedded in a triple-quoted string. The MZ header
+  # followed by 500+ base64 characters is not a shape that appears in
+  # legitimate code outside of PE-embedding malware.
+  - name: long_base64_pe_blob
+    weight: 30
+    type: regex
+    pattern: '"""\s*TV[pqo][A-Za-z0-9+/\s]{500,}'
+
+  # The WinAPI import pair used by the reflective PE loader. On its own this
+  # is common in legitimate Windows Python; it only pulls weight when paired
+  # with the other indicators.
+  - name: ctypes_wintypes_import
+    weight: 15
+    type: regex
+    pattern: 'from\s+ctypes\s+import\s+wintypes'
+
+  # The PE loader constants. Pattern anchored on the specific set used by
+  # the PyMapper reflective loader so it does not fire on arbitrary code
+  # that happens to reference VirtualAlloc flags.
+  - name: pe_loader_constants
+    weight: 20
+    type: regex
+    pattern: 'MEM_COMMIT\s*,\s*MEM_RESERVE\s*=|PAGE_RW\s*,\s*PAGE_XR\s*,\s*PAGE_XRW|REL_DIR64\s*,\s*REL_HIGHLOW'
+
+  # Windows registry persistence. On its own this is common; it adds signal
+  # when colocated with the base64 PE blob in the same file.
+  - name: winreg_persistence
+    weight: 10
+    type: regex
+    pattern: '^\s*import\s+winreg\b'
+
+retrohunt:
+  github_queries:
+    - '"PE_B64_BEGIN" language:python'
+    - '"ENCODED_PE" "TVp" language:python'
+    - '"REL_DIR64, REL_HIGHLOW" language:python'
+    - '"MEM_COMMIT, MEM_RESERVE" "import winreg" language:python'
+  rate_limit_rps: 1.0
+
+known_hashes:
+  - sha256: f6b3e69758b54b04848137dc3b112f0f228268014e734b881cdab2c7c7b86129
+    label: "embedded-PE stage-1 shared BYTE-IDENTICALLY across 3 trojan repos (hkqr/my-free-code cli/point.py, letorig/video-generator-client src/video_gen/seedance.py, gunkonchi/xscrape xscrape/fs.py); size 1,142,725 bytes; embedded stage-4 PE sha256 b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd pointing at http://194.102.104.223:8093"
+    first_seen: 2026-10-15
