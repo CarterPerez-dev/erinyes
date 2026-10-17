@@ -88,5 +88,5 @@ retrohunt:
 
 known_hashes:
   - sha256: f6b3e69758b54b04848137dc3b112f0f228268014e734b881cdab2c7c7b86129
-    label: "embedded-PE stage-1 shared BYTE-IDENTICALLY across 3 trojan repos (hkqr/my-free-code cli/point.py, letorig/video-generator-client src/video_gen/seedance.py, gunkonchi/xscrape xscrape/fs.py); size 1,142,725 bytes; embedded stage-4 PE sha256 b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd pointing at http://194.102.104.223:8093"
+    label: "embedded-PE stage-1 shared BYTE-IDENTICALLY across 5 trojan repos pushed on the 2026-10-15 coordinated rollout (hkqr/my-free-code cli/point.py, letorig/video-generator-client src/video_gen/seedance.py, gunkonchi/xscrape xscrape/fs.py, nahrek/polyledger polyledger/polyledger.py, caxete/crypto-tax-calculator src/report.py); size 1,142,725 bytes; embedded stage-4 PE sha256 b7cb766340cf4da00d990bf1dce5274c6f0fa56bde415ab525af9e4136c225bd pointing at http://194.102.104.223:8093; this is a coordinated multi-sockpuppet deployment, not progressive migration — one build, one day, five repos"
     first_seen: 2026-10-15
