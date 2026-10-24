@@ -4,6 +4,8 @@
 /erinyes
 /erinyes.exe
 /dist/
+/docs/
+/active-sockpuppets.txt
 coverage.out
 coverage.html
 *.sarif
