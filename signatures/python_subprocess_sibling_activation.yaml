@@ -1,0 +1,77 @@
+# ©AngelaMos | 2026
+# python_subprocess_sibling_activation.yaml
+
+id: python-subprocess-sibling-activation
+version: 1
+family: PyMapper
+severity: high
+confidence_threshold: 50
+file_patterns: ["*.py"]
+
+first_seen: 2026-10-20
+contributor: carterperez-dev
+description: >
+  Activation-glue files that re-wire a legitimate forked repo to spawn a
+  sibling Python file via subprocess.Popen. The sibling is the real stage-1
+  loader (typically a 1+ MB file with an embedded base64 PE). The glue file
+  itself is small (< 20 KB), within the GitHub Code Search file-size limit
+  that excludes the oversized loader. Hunting this glue can surface carriers
+  missed by direct loader queries. Legitimate tools also launch relative
+  Python scripts; confirm the target payload before attributing a match.
+  First observed in Dropnation/contract-fuzzer src/solfuzz/system_info.py
+  (2026-10-17 commit "generation logic update"), which replaced a prior
+  `cl.run_sync()` call with `process = subprocess.Popen(["python", "cl.py"])`
+  while removing the `from . import cl` import to hide the handoff.
+
+references:
+  - "First observed glue: Dropnation/contract-fuzzer src/solfuzz/system_info.py (2026-10-17)"
+  - "Loader sibling it invokes: src/solfuzz/cl.py SHA-256 f6b3e69758b54b04848137dc3b112f0f228268014e734b881cdab2c7c7b86129 (1,142,725 bytes, newer-build NEW-shape)"
+  - "Same loader also found in gichirimaku/wp2shell-PoC/exp.py (byte-identical)"
+  - "MITRE ATT&CK: T1059.006 Python, T1105 Ingress Tool Transfer"
+
+indicators:
+  - name: popen_sibling_python_file
+    weight: 40
+    type: regex
+    pattern: 'subprocess\.(Popen|run|call|check_call|check_output)\s*\(\s*\[\s*["'']python[0-9]?["'']\s*,\s*["''][A-Za-z_][A-Za-z0-9_./-]*\.py["'']'
+
+  - name: popen_sibling_shell_python
+    weight: 35
+    type: regex
+    pattern: 'subprocess\.(Popen|run|call|check_call|check_output)\s*\(\s*["''](python[0-9]?\s+[A-Za-z_][A-Za-z0-9_./-]*\.py)[^"'']*["'']'
+
+  - name: os_system_sibling_python
+    weight: 30
+    type: regex
+    pattern: 'os\.(system|popen|execvp|execlp|execv|execl)\s*\(\s*["''](python[0-9]?\s+)?[A-Za-z_][A-Za-z0-9_./-]*\.py["'']'
+
+  - name: suspicious_helper_scaffold
+    weight: 15
+    type: regex
+    pattern: 'def\s+(_?try_imports|_?init_env|_?init_runtime|_?system_info|_?health_check|_?bootstrap|_?post_install|_?configure_environment|_?setup_runtime|_?initialize_runtime)\s*\('
+
+  - name: module_top_sideeffect_call
+    weight: 10
+    type: regex
+    pattern: '(?m)^(_?try_imports|_?init_env|_?init_runtime|_?system_info|_?health_check|_?bootstrap|_?post_install|_?configure_environment|_?setup_runtime|_?initialize_runtime)\s*\(\s*\)'
+
+  - name: silent_except_pass_near_popen
+    weight: 10
+    type: regex
+    pattern: 'try:[^#\n]*\n(?:[ \t]+[^\n]*\n){1,15}[ \t]+subprocess\.(Popen|run|call|check_call|check_output)'
+
+retrohunt:
+  github_queries:
+    - '"subprocess.Popen" "python" "cl.py" language:python'
+    - '"_try_imports" "subprocess.Popen" language:python'
+    - '"system_info" "subprocess.Popen" language:python'
+    - '"health_check" "subprocess.Popen" language:python'
+    - '"init_runtime" "subprocess.Popen" language:python'
+    - '"bootstrap" "subprocess.Popen" ".py" language:python'
+    - '"configure_environment" "subprocess.Popen" language:python'
+  rate_limit_rps: 0.17
+
+known_hashes:
+  - sha256: 1b1edffa2e83f55bb960a65ae93ac6180ebad49bd2f5250d2363751f55b3b52d
+    label: system_info.py activation glue from Dropnation/contract-fuzzer (first observed)
+    first_seen: 2026-10-20
