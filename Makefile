@@ -43,7 +43,7 @@ package: build-all ## tarballs, zip and checksums.txt
 	@ver=$$(echo "$(VERSION)" | sed 's/^v//'); \
 	cd $(DIST) && for stage in */; do \
 		stage=$${stage%/}; suffix=$${stage#$(BINARY)_}; \
-		cp ../LICENSE ../README.md "$$stage/"; \
+		cp ../LICENSE ../README.md ../DOCS.md "$$stage/"; \
 		if [ -f "$$stage/$(BINARY).exe" ]; then \
 			(cd "$$stage" && zip -qr "../$(BINARY)_$${ver}_$${suffix}.zip" .); \
 		else \

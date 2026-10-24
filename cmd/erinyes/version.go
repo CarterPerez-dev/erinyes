@@ -22,6 +22,19 @@ var (
 
 var errFlagged = errors.New("one or more files matched a signature at or above its confidence threshold")
 
+func init() {
+	if version == "dev" {
+		version = moduleVersion()
+	}
+}
+
+func moduleVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
 func buildInfo() (string, string) {
 	c, d := commit, date
 	info, ok := debug.ReadBuildInfo()

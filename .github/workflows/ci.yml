@@ -64,7 +64,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
 
@@ -78,12 +78,13 @@ jobs:
         run: |
           bash -n install.sh
           bash -n uninstall.sh
+          bash -n scripts/fork-crawl.sh
 
       - name: shellcheck
         run: |
           sudo apt-get update -y
           sudo apt-get install -y shellcheck
-          shellcheck -S warning install.sh uninstall.sh
+          shellcheck -S warning install.sh uninstall.sh scripts/fork-crawl.sh
 
       - name: help exits clean and a bad flag does not
         run: |
@@ -93,14 +94,18 @@ jobs:
             exit 1
           fi
 
-      - name: end to end install into a sandboxed HOME
+      - name: end to end install into a temporary prefix
         run: |
-          SANDBOX="$(mktemp -d)"
-          HOME="$SANDBOX" SHELL=/bin/bash ./install.sh --from-source --prefix "$SANDBOX/bin"
-          "$SANDBOX/bin/erinyes" version
-          "$SANDBOX/bin/erinyes" signatures list
-          HOME="$SANDBOX" ./uninstall.sh --prefix "$SANDBOX/bin"
-          test ! -f "$SANDBOX/bin/erinyes"
+          INSTALL_TEST_DIR="$(mktemp -d)"
+          export PATH="$INSTALL_TEST_DIR/bin:$PATH"
+          export GOBIN="$INSTALL_TEST_DIR/bin"
+          export XDG_CACHE_HOME="$INSTALL_TEST_DIR/cache"
+          export ERINYES_CONFIG_DIR="$INSTALL_TEST_DIR/config"
+          ./install.sh --from-source --prefix "$INSTALL_TEST_DIR/bin"
+          "$INSTALL_TEST_DIR/bin/erinyes" version
+          "$INSTALL_TEST_DIR/bin/erinyes" signatures list
+          ./uninstall.sh --prefix "$INSTALL_TEST_DIR/bin"
+          test ! -f "$INSTALL_TEST_DIR/bin/erinyes"
 
   sarif:
     name: sarif
@@ -111,16 +116,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: astral-sh/setup-uv@v7
 
       - name: produce a sarif report
         run: go run ./cmd/erinyes scan ./testdata --format sarif --output erinyes.sarif || true
 
       - name: validate it against the oasis schema
         run: |
-          python3 -m pip install --quiet jsonschema
           curl -fsSL -o sarif-2.1.0.json \
             https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json
-          python3 - <<'PY'
+          uv run --with jsonschema python - <<'PY'
           import json, jsonschema
           jsonschema.validate(json.load(open("erinyes.sarif")), json.load(open("sarif-2.1.0.json")))
           print("sarif is valid")

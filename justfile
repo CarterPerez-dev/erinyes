@@ -46,7 +46,7 @@ package: build-all
     for stage in */; do
         stage="${stage%/}"
         suffix="${stage#{{binary}}_}"
-        cp ../LICENSE ../README.md "$stage/"
+        cp ../LICENSE ../README.md ../DOCS.md "$stage/"
         if [ -f "$stage/{{binary}}.exe" ]; then
             (cd "$stage" && zip -qr "../{{binary}}_${ver}_${suffix}.zip" .)
         else
@@ -108,9 +108,14 @@ sweep target:
 sweep-query query:
     go run {{pkg}} sweep --query "{{query}}"
 
-sarif path out="erinyes.sarif":
-    go run {{pkg}} scan {{path}} --format sarif --output {{out}}
-    @echo "upload with: gh api -X POST /repos/OWNER/REPO/code-scanning/sarifs -f commit_sha=... -f ref=... -f sarif=@{{out}}"
+sarif path out="erinyes.sarif": build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    code=0
+    ./{{binary}} scan "{{path}}" --format sarif --output "{{out}}" || code=$?
+    if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then exit "$code"; fi
+    test -s "{{out}}"
+    echo "report: {{out}}; see DOCS.md for GitHub SARIF upload instructions"
 
 clean:
     rm -rf {{dist}} {{binary}} coverage.out erinyes.sarif

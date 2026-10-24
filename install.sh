@@ -74,7 +74,7 @@ usage() {
 install.sh - install ${BINARY}
 
   ./install.sh [options]
-  curl -fsSL https://angelamos.com/${BINARY}/install.sh | bash
+  curl -fsSL https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/install.sh | bash
 
 options:
   --prefix DIR   install dir (default: ${INSTALL_DIR})
@@ -84,6 +84,7 @@ options:
 
 environment:
   ERINYES_INSTALL_DIR   same as --prefix
+  GH_TOKEN              optional GitHub CLI token for private release downloads
   NO_COLOR              disable colored output
 USAGE
 }
@@ -91,11 +92,11 @@ USAGE
 WANT_VERSION=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --prefix)      INSTALL_DIR="$2"; shift 2 ;;
-        --prefix=*)    INSTALL_DIR="${1#*=}"; shift ;;
+        --prefix)      [ $# -ge 2 ] && [ -n "$2" ] || die "--prefix requires a directory"; INSTALL_DIR="$2"; shift 2 ;;
+        --prefix=*)    INSTALL_DIR="${1#*=}"; [ -n "$INSTALL_DIR" ] || die "--prefix requires a directory"; shift ;;
         --from-source) PREBUILT=0; shift ;;
-        --version)     WANT_VERSION="$2"; shift 2 ;;
-        --version=*)   WANT_VERSION="${1#*=}"; shift ;;
+        --version)     [ $# -ge 2 ] && [ -n "$2" ] || die "--version requires a tag"; WANT_VERSION="$2"; shift 2 ;;
+        --version=*)   WANT_VERSION="${1#*=}"; [ -n "$WANT_VERSION" ] || die "--version requires a tag"; shift ;;
         -h|--help)     usage; exit 0 ;;
         *)             die "unknown option: $1 (try --help)" ;;
     esac
@@ -116,16 +117,25 @@ case "$ARCH" in
 esac
 
 version_ge() {
-    [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+    awk -v actual="$1" -v required="$2" 'BEGIN {
+        split(actual, a, "."); split(required, r, ".")
+        for (i = 1; i <= 3; i++) {
+            if (a[i] + 0 > r[i] + 0) exit 0
+            if (a[i] + 0 < r[i] + 0) exit 1
+        }
+        exit 0
+    }'
 }
 
 resolve_repo() {
-    local self="${BASH_SOURCE[0]:-}"
+    local self="${BASH_SOURCE[0]:-}" local_repo=""
     if [ -f "./go.mod" ] && [ -d "./cmd/${BINARY}" ]; then
-        pwd; return
+        local_repo="$(pwd)"
+    elif [ -n "$self" ] && [ -f "$(dirname "$self")/go.mod" ]; then
+        local_repo="$(cd "$(dirname "$self")" && pwd)"
     fi
-    if [ -n "$self" ] && [ -f "$(dirname "$self")/go.mod" ]; then
-        (cd "$(dirname "$self")" && pwd); return
+    if [ -n "$local_repo" ] && [ -z "$WANT_VERSION" ]; then
+        printf '%s\n' "$local_repo"; return
     fi
     if ! have git; then
         warn "git is missing, installing it"
@@ -133,10 +143,22 @@ resolve_repo() {
     fi
     have git || die "could not install git; install it then re-run"
 
+    if [ -n "$WANT_VERSION" ]; then
+        local source="$REPO_URL"
+        if [ -n "$local_repo" ] && git -C "$local_repo" show-ref --verify --quiet "refs/tags/$WANT_VERSION"; then
+            source="$local_repo"
+        fi
+        info "cloning release ${WANT_VERSION}"
+        git clone --depth 1 --branch "$WANT_VERSION" --quiet "$source" "$TMP_DIR/source" \
+            || die "could not clone release ${WANT_VERSION}"
+        printf '%s\n' "$TMP_DIR/source"
+        return
+    fi
+
     local cache="${XDG_CACHE_HOME:-$HOME/.cache}/${BINARY}-src"
     if [ -d "$cache/.git" ]; then
         info "updating cached clone at $cache"
-        git -C "$cache" pull --ff-only --quiet 2>/dev/null || warn "pull failed, using the existing clone"
+        git -C "$cache" pull --ff-only --quiet || die "could not update the cached clone at $cache"
     else
         info "cloning ${REPO_URL}"
         git clone --depth 1 --branch "$DEFAULT_BRANCH" --quiet "$REPO_URL" "$cache" \
@@ -155,7 +177,6 @@ install_go_tarball() {
     local dest="$HOME/.local/go"
 
     info "downloading Go ${ver} from go.dev"
-    TMP_DIR="$(mktemp -d)"
     download "$url" "$TMP_DIR/go.tar.gz" || die "could not download $url"
 
     rm -rf "$dest"
@@ -211,8 +232,24 @@ build_from_source() {
 }
 
 latest_tag() {
+    if have gh; then
+        local tag
+        if tag="$(gh release view --repo "${REPO_OWNER}/${REPO_NAME}" --json tagName --jq .tagName 2>/dev/null)" && [ -n "$tag" ]; then
+            printf '%s\n' "$tag"
+            return
+        fi
+    fi
     download "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest" /dev/stdout 2>/dev/null \
         | grep '"tag_name":' | head -n1 | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/'
+}
+
+download_release_asset() {
+    local ver="$1" name="$2" destination="$3"
+    if have gh && gh release download "$ver" --repo "${REPO_OWNER}/${REPO_NAME}" \
+        --pattern "$name" --output "$destination" --clobber 2>/dev/null; then
+        return
+    fi
+    download "https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${ver}/${name}" "$destination"
 }
 
 verify_checksum() {
@@ -236,7 +273,7 @@ verify_checksum() {
 try_prebuilt() {
     [ "$PREBUILT" = "1" ] || return 1
 
-    local ver archive url
+    local ver archive
     ver="${WANT_VERSION}"
     if [ -z "$ver" ]; then
         ver="$(latest_tag || true)"
@@ -247,25 +284,23 @@ try_prebuilt() {
     fi
 
     archive="${BINARY}_${ver#v}_${OS}_${ARCH}.tar.gz"
-    url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${ver}/${archive}"
+    WANT_VERSION="$ver"
 
-    TMP_DIR="$(mktemp -d)"
-    if ! download "$url" "$TMP_DIR/$archive"; then
+    if ! download_release_asset "$ver" "$archive" "$TMP_DIR/$archive"; then
         warn "no prebuilt binary for ${OS}/${ARCH} in ${ver}, building from source"
         return 1
     fi
 
-    if download "https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${ver}/checksums.txt" "$TMP_DIR/checksums.txt"; then
-        verify_checksum "$TMP_DIR/$archive" "$TMP_DIR/checksums.txt" "$archive" || true
-    else
-        warn "checksums.txt not published for ${ver}, skipping verification"
-    fi
+    download_release_asset "$ver" checksums.txt "$TMP_DIR/checksums.txt" \
+        || die "checksums.txt is unavailable for ${ver}"
+    verify_checksum "$TMP_DIR/$archive" "$TMP_DIR/checksums.txt" "$archive" \
+        || die "could not verify ${archive}"
 
-    tar -xzf "$TMP_DIR/$archive" -C "$TMP_DIR"
+    tar -xzf "$TMP_DIR/$archive" -C "$TMP_DIR" || die "could not extract ${archive}"
     [ -f "$TMP_DIR/$BINARY" ] || { warn "archive did not contain ${BINARY}, building from source"; return 1; }
 
-    mkdir -p "$INSTALL_DIR"
-    install -m 0755 "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
+    mkdir -p "$INSTALL_DIR" || die "could not create ${INSTALL_DIR}"
+    install -m 0755 "$TMP_DIR/$BINARY" "$INSTALL_DIR/$BINARY" || die "could not install ${BINARY} to ${INSTALL_DIR}"
     ok "installed ${ver} -> ${INSTALL_DIR}/${BINARY}"
 }
 
@@ -294,6 +329,7 @@ wire_path() {
 
 main() {
     banner
+    TMP_DIR="$(mktemp -d)"
 
     if have "$BINARY"; then
         info "existing install at $(command -v "$BINARY"), updating"

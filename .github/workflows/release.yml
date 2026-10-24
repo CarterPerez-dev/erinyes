@@ -22,6 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
 
       - uses: actions/setup-go@v5
         with:
@@ -29,10 +30,15 @@ jobs:
           cache: true
 
       - name: test before shipping anything
-        run: go test ./... -race
+        run: |
+          go test ./... -race
+          go vet ./...
+          go run ./cmd/erinyes signatures validate ./signatures
 
       - name: build every platform and package it
-        run: make package
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: make package VERSION="$RELEASE_TAG"
 
       - name: show what will be published
         run: cat dist/checksums.txt
@@ -40,9 +46,12 @@ jobs:
       - name: publish
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
+            install.sh
+            uninstall.sh
           generate_release_notes: true
           fail_on_unmatched_files: true
