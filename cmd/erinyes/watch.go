@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -49,6 +48,7 @@ type repoState struct {
 
 type watchState struct {
 	Repos map[string]*repoState `json:"repos"`
+	mu    sync.Mutex
 }
 
 func newWatchCommand(g *globals) *cobra.Command {
@@ -57,12 +57,10 @@ func newWatchCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch [owner/repo ...]",
 		Short: "Poll a set of GitHub repositories and announce new commits, file changes, and release-wave bursts",
-		Long: "Watch tracks the five (or N) active sockpuppet repositories you give it and\n" +
-			"announces whenever any one of them gets a new commit, when a tracked file's\n" +
-			"blob SHA changes, and when a cluster of repos push within a tight window (a\n" +
-			"release wave). State persists across runs in a JSON file so a new push since\n" +
-			"last run fires exactly once.\n\n" +
-			"Notification channels (set any one — or none for stdout-only):\n" +
+		Long: "Watch polls repository pushed_at timestamps and compares .py/.md blob SHAs\n" +
+			"when the timestamp changes. Each pass also groups pushes within 15 minutes.\n" +
+			"State persists in a JSON file; the first observation establishes a baseline.\n\n" +
+			"Notification channels (set any one, or none for stdout-only):\n" +
 			"  --telegram-token / --telegram-chat   Telegram bot API (TELEGRAM_BOT_TOKEN env)\n" +
 			"  --webhook URL                        generic POST { 'text': ... } webhook\n" +
 			"\n" +
@@ -225,11 +223,12 @@ func runWatch(ctx context.Context, g *globals, opts watchOptions) error {
 	}
 
 	for {
-		if err := watchPass(ctx, g, client, opts, stateFile); err != nil {
+		err := watchPass(ctx, g, client, opts, stateFile)
+		if err != nil {
 			_, _ = fmt.Fprintf(g.errOut(), "pass error: %v\n", err)
 		}
 		if opts.once {
-			return nil
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -310,6 +309,8 @@ func checkOne(ctx context.Context, client *gh.Client, repo string, st *watchStat
 		}
 	}
 
+	st.mu.Lock()
+	defer st.mu.Unlock()
 	prev, seen := st.Repos[repo]
 	now := time.Now()
 	var events []event
@@ -342,7 +343,7 @@ func checkOne(ctx context.Context, client *gh.Client, repo string, st *watchStat
 				detail += fmt.Sprintf("\n  + %s", p)
 			}
 			for _, p := range changed {
-				detail += fmt.Sprintf("\n  M %s   %s -> %s", p, prev.Tree[p][:8], tree[p][:8])
+				detail += fmt.Sprintf("\n  M %s   %.8s -> %.8s", p, prev.Tree[p], tree[p])
 			}
 			for _, p := range removed {
 				detail += fmt.Sprintf("\n  - %s", p)
@@ -411,7 +412,7 @@ func detectBurst(events []event, window time.Duration) *event {
 		Repo:      "<multiple>",
 		Kind:      "RELEASE-WAVE",
 		Headline:  fmt.Sprintf("%d repos pushed within %s", len(pushes), spread.Round(time.Second)),
-		Detail:    "repos: " + strings.Join(repos, ", ") + "\n(this matches the observed pipeline: 5+ repos pushed in the same window = coordinated release)",
+		Detail:    "repos: " + strings.Join(repos, ", ") + "\n(push timestamps are within the same window; coordination is not established)",
 		Timestamp: pushes[len(pushes)-1].Timestamp,
 	}
 }
@@ -458,5 +459,3 @@ func sendTelegram(ctx context.Context, token, chatID, text string) error {
 	}
 	return nil
 }
-
-var _ = errors.New
