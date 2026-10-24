@@ -38,7 +38,7 @@
 ## Install
 
 ```bash
-curl -fsSL https://github.com/CarterPerez-dev/erinyes/releases/latest/download/install.sh | bash
+curl -fsSL https://angelamos.com/erinyes/install.sh | bash
 ```
 
 Or with Go 1.25 or newer:

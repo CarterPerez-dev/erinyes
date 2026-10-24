@@ -74,7 +74,7 @@ usage() {
 install.sh - install ${BINARY}
 
   ./install.sh [options]
-  curl -fsSL https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/install.sh | bash
+  curl -fsSL https://angelamos.com/erinyes/install.sh | bash
 
 options:
   --prefix DIR   install dir (default: ${INSTALL_DIR})

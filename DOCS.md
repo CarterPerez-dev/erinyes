@@ -40,15 +40,15 @@ Signature authoring, scoring, and local configuration are documented below.
 **Release installer (Linux or macOS, amd64 or arm64):**
 
 ```bash
-curl -fsSL https://github.com/CarterPerez-dev/erinyes/releases/latest/download/install.sh | bash
+curl -fsSL https://angelamos.com/erinyes/install.sh | bash
 ```
 
-The installer downloads the matching release archive, requires its SHA-256 to match `checksums.txt`, and installs to `~/.local/bin` by default. It adds the installation directory to your shell configuration if needed. If no release binary is available, it builds from source and obtains Go when necessary. A selected release tag is preserved during source fallback.
+The installer downloads the matching release archive from GitHub Releases, requires its SHA-256 to match `checksums.txt`, and installs to `~/.local/bin` by default. It adds the installation directory to your shell configuration if needed. If no release binary is available, it builds from source and obtains Go when necessary. A selected release tag is preserved during source fallback.
 
 Options are `--prefix DIR`, `--version TAG`, `--from-source`, and `--help`. `ERINYES_INSTALL_DIR` supplies the default prefix. There is no option to skip checksum verification.
 
 ```bash
-curl -fsSL https://github.com/CarterPerez-dev/erinyes/releases/latest/download/install.sh | bash -s -- --version v0.1.0
+curl -fsSL https://angelamos.com/erinyes/install.sh | bash -s -- --version v0.1.0
 ```
 
 **Go install (Go 1.25 or newer):**
