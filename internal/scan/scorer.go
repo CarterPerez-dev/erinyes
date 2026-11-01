@@ -44,8 +44,11 @@ func Better(a, b ScanResult) bool {
 	if (a.KnownHash != "") != (b.KnownHash != "") {
 		return a.KnownHash != ""
 	}
-	if a.Severity.Rank() != b.Severity.Rank() {
+	if a.Verdict == VerdictMalicious && a.Severity.Rank() != b.Severity.Rank() {
 		return a.Severity.Rank() > b.Severity.Rank()
 	}
-	return a.TotalScore > b.TotalScore
+	if a.TotalScore != b.TotalScore {
+		return a.TotalScore > b.TotalScore
+	}
+	return a.Severity.Rank() > b.Severity.Rank()
 }

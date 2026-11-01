@@ -254,7 +254,7 @@ func TestOversizeFilesAreSkippedNotErrored(t *testing.T) {
 
 func TestNonMatchingExtensionsAreSkipped(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"a.py", "b.js", "c.txt", "d.exe"} {
+	for _, name := range []string{"a.py", "b.js", "c.txt", "d.exe", "e.png"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("noop\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -263,8 +263,8 @@ func TestNonMatchingExtensionsAreSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScanPath() = %v", err)
 	}
-	if summary.Scanned != 1 {
-		t.Errorf("Scanned = %d, want 1: only *.py matches the builtin catalog", summary.Scanned)
+	if summary.Scanned != 2 {
+		t.Errorf("Scanned = %d, want 2: only *.py and *.js match the builtin catalog", summary.Scanned)
 	}
 	if summary.Skipped != 3 {
 		t.Errorf("Skipped = %d, want 3", summary.Skipped)
@@ -359,6 +359,12 @@ func TestBetterPrefersKnownHashThenSeverityOverRawScore(t *testing.T) {
 	}
 	if !scan.Better(generic, weak) {
 		t.Error("a malicious verdict must win over a suspicious one regardless of score")
+	}
+
+	silentFamily := scan.ScanResult{Verdict: scan.VerdictClean, TotalScore: 0, Severity: sig.SeverityCritical}
+	weakGeneric := scan.ScanResult{Verdict: scan.VerdictClean, TotalScore: 15, Severity: sig.SeverityMedium}
+	if !scan.Better(weakGeneric, silentFamily) {
+		t.Error("below malicious, the higher score must win so low-signal evidence is not hidden by a silent signature")
 	}
 }
 
