@@ -52,10 +52,57 @@ func (v *Verdict) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type Confidence int
+
+const (
+	ConfidenceNone Confidence = iota
+	ConfidenceLow
+	ConfidenceMedium
+	ConfidenceHigh
+)
+
+func (c Confidence) String() string {
+	switch c {
+	case ConfidenceHigh:
+		return "high"
+	case ConfidenceMedium:
+		return "medium"
+	case ConfidenceLow:
+		return "low"
+	default:
+		return "none"
+	}
+}
+
+func (c Confidence) MarshalJSON() ([]byte, error) {
+	return json.Marshal(c.String())
+}
+
+func (c *Confidence) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	switch s {
+	case "high":
+		*c = ConfidenceHigh
+	case "medium":
+		*c = ConfidenceMedium
+	case "low":
+		*c = ConfidenceLow
+	case "none", "":
+		*c = ConfidenceNone
+	default:
+		return fmt.Errorf("unknown confidence %q", s)
+	}
+	return nil
+}
+
 type IndicatorHit struct {
-	Indicator  string `json:"indicator"`
-	MatchCount int    `json:"count"`
-	Weight     int    `json:"weight"`
+	Indicator  string  `json:"indicator"`
+	MatchCount int     `json:"count"`
+	Weight     int     `json:"weight"`
+	Value      float64 `json:"value,omitempty"`
 }
 
 type ScanResult struct {
@@ -63,6 +110,7 @@ type ScanResult struct {
 	FileSHA256 string         `json:"sha256"`
 	FileSize   int64          `json:"size"`
 	Verdict    Verdict        `json:"verdict"`
+	Confidence Confidence     `json:"confidence"`
 	TotalScore int            `json:"total_score"`
 	Threshold  int            `json:"threshold"`
 	Hits       []IndicatorHit `json:"hits,omitempty"`
@@ -88,6 +136,7 @@ type Summary struct {
 	Scanned    int   `json:"scanned"`
 	Flagged    int   `json:"flagged"`
 	Suspicious int   `json:"suspicious"`
+	LowSignal  int   `json:"low_signal"`
 	Clean      int   `json:"clean"`
 	Skipped    int   `json:"skipped"`
 	Errors     int   `json:"errors"`
@@ -112,6 +161,9 @@ func (s *Summary) observe(r ScanResult) {
 		s.Suspicious++
 	default:
 		s.Clean++
+		if r.Confidence == ConfidenceLow {
+			s.LowSignal++
+		}
 	}
 }
 

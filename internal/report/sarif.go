@@ -105,16 +105,17 @@ type sarifResult struct {
 }
 
 type sarifResultProps struct {
-	Score     int               `json:"score"`
-	Threshold int               `json:"threshold"`
-	Verdict   string            `json:"verdict"`
-	Family    string            `json:"family"`
-	SizeBytes int64             `json:"sizeBytes"`
-	KnownHash string            `json:"knownHash,omitempty"`
-	URL       string            `json:"url,omitempty"`
-	Hits      map[string]int    `json:"indicatorMatches,omitempty"`
-	Weights   map[string]int    `json:"indicatorWeights,omitempty"`
-	Extra     map[string]string `json:"-"`
+	Score      int               `json:"score"`
+	Threshold  int               `json:"threshold"`
+	Verdict    string            `json:"verdict"`
+	Confidence string            `json:"confidence"`
+	Family     string            `json:"family"`
+	SizeBytes  int64             `json:"sizeBytes"`
+	KnownHash  string            `json:"knownHash,omitempty"`
+	URL        string            `json:"url,omitempty"`
+	Hits       map[string]int    `json:"indicatorMatches,omitempty"`
+	Weights    map[string]int    `json:"indicatorWeights,omitempty"`
+	Extra      map[string]string `json:"-"`
 }
 
 type sarifInvoc struct {
@@ -153,7 +154,7 @@ func writeSARIF(w io.Writer, rep *Report) error {
 		rules = append(rules, sarifRule{
 			ID:               r.ID,
 			Name:             r.ID,
-			ShortDescription: sarifText{Text: fmt.Sprintf("%s: %s stage-1 obfuscated loader", r.ID, r.Family)},
+			ShortDescription: sarifText{Text: fmt.Sprintf("%s: %s detection signature", r.ID, r.Family)},
 			FullDescription:  sarifText{Text: desc},
 			Help:             sarifText{Text: help},
 			HelpURI:          toolURI,
@@ -207,15 +208,16 @@ func writeSARIF(w io.Writer, rep *Report) error {
 				"erinyes/sha256": e.FileSHA256,
 			},
 			Properties: sarifResultProps{
-				Score:     e.TotalScore,
-				Threshold: e.Threshold,
-				Verdict:   e.Verdict.String(),
-				Family:    e.Family,
-				SizeBytes: e.FileSize,
-				KnownHash: e.KnownHash,
-				URL:       e.URL,
-				Hits:      hits,
-				Weights:   weights,
+				Score:      e.TotalScore,
+				Threshold:  e.Threshold,
+				Verdict:    e.Verdict.String(),
+				Confidence: e.Confidence.String(),
+				Family:     e.Family,
+				SizeBytes:  e.FileSize,
+				KnownHash:  e.KnownHash,
+				URL:        e.URL,
+				Hits:       hits,
+				Weights:    weights,
 			},
 		})
 	}

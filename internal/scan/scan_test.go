@@ -289,6 +289,79 @@ func TestGitDirectoryIsNotWalked(t *testing.T) {
 	}
 }
 
+func TestDependencyDirectoriesAreSkippedUnlessRequested(t *testing.T) {
+	dir := t.TempDir()
+	for _, sub := range []string{"node_modules/pkg", ".venv/lib", "src"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, sub, "mod.py"), []byte("x = 1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, summary, err := scan.New(builtinCatalog(t)).ScanPath(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("ScanPath() = %v", err)
+	}
+	if summary.Scanned != 1 {
+		t.Errorf("Scanned = %d, want 1: installed dependency directories must be skipped by default", summary.Scanned)
+	}
+
+	_, summary, err = scan.New(builtinCatalog(t), scan.WithDependencyDirs(true)).ScanPath(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("ScanPath() = %v", err)
+	}
+	if summary.Scanned != 3 {
+		t.Errorf("Scanned = %d, want 3 with dependency directories included", summary.Scanned)
+	}
+
+	_, summary, err = scan.New(builtinCatalog(t)).ScanPath(context.Background(), filepath.Join(dir, "node_modules"))
+	if err != nil {
+		t.Fatalf("ScanPath() = %v", err)
+	}
+	if summary.Scanned != 1 {
+		t.Errorf("Scanned = %d, want 1: a dependency directory named as the scan root must be walked", summary.Scanned)
+	}
+}
+
+func TestConfidenceFollowsVerdictAndScore(t *testing.T) {
+	cases := []struct {
+		verdict scan.Verdict
+		score   int
+		known   bool
+		want    scan.Confidence
+	}{
+		{scan.VerdictClean, 0, false, scan.ConfidenceNone},
+		{scan.VerdictClean, 10, false, scan.ConfidenceLow},
+		{scan.VerdictSuspicious, 30, false, scan.ConfidenceMedium},
+		{scan.VerdictMalicious, 60, false, scan.ConfidenceHigh},
+		{scan.VerdictMalicious, 0, true, scan.ConfidenceHigh},
+	}
+	for _, tc := range cases {
+		if got := scan.Rate(tc.verdict, tc.score, tc.known); got != tc.want {
+			t.Errorf("Rate(%s, %d, %v) = %s, want %s", tc.verdict, tc.score, tc.known, got, tc.want)
+		}
+	}
+}
+
+func TestBetterPrefersKnownHashThenSeverityOverRawScore(t *testing.T) {
+	known := scan.ScanResult{Verdict: scan.VerdictMalicious, TotalScore: 100, KnownHash: "sample", Severity: sig.SeverityCritical}
+	family := scan.ScanResult{Verdict: scan.VerdictMalicious, TotalScore: 120, Severity: sig.SeverityCritical}
+	generic := scan.ScanResult{Verdict: scan.VerdictMalicious, TotalScore: 300, Severity: sig.SeverityMedium}
+	weak := scan.ScanResult{Verdict: scan.VerdictSuspicious, TotalScore: 900, Severity: sig.SeverityCritical}
+
+	if !scan.Better(known, generic) || !scan.Better(known, family) {
+		t.Error("a known-hash match must win over indicator-only matches")
+	}
+	if !scan.Better(family, generic) {
+		t.Error("a family signature must win over a lower-severity generic heuristic with a higher raw score")
+	}
+	if !scan.Better(generic, weak) {
+		t.Error("a malicious verdict must win over a suspicious one regardless of score")
+	}
+}
+
 func TestSingleFileIsScannedEvenWithoutAPatternMatch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "loader.txt")

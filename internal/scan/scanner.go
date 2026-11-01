@@ -28,13 +28,25 @@ var skipDirs = map[string]struct{}{
 	".git": {}, ".hg": {}, ".svn": {},
 }
 
+var dependencyDirs = map[string]struct{}{
+	"node_modules": {}, "bower_components": {}, ".venv": {}, "venv": {},
+	"site-packages": {}, ".tox": {}, "__pycache__": {},
+}
+
 type Scanner struct {
 	catalog     *sig.Catalog
 	workers     int
 	maxFileSize int64
+	includeDeps bool
 }
 
 type Option func(*Scanner)
+
+func WithDependencyDirs(include bool) Option {
+	return func(s *Scanner) {
+		s.includeDeps = include
+	}
+}
 
 func WithWorkers(n int) Option {
 	return func(s *Scanner) {
@@ -90,6 +102,7 @@ func (s *Scanner) ScanBytes(name string, data []byte, sg *sig.Signature) ScanRes
 		res.KnownHash = kh.Label
 		res.Verdict = VerdictMalicious
 	}
+	res.Confidence = Rate(res.Verdict, res.TotalScore, res.KnownHash != "")
 
 	res.DurationMS = time.Since(start).Milliseconds()
 	return res
@@ -192,6 +205,10 @@ func (s *Scanner) walk(root string) ([]string, int, error) {
 			if _, skip := skipDirs[d.Name()]; skip {
 				return fs.SkipDir
 			}
+			if _, dep := dependencyDirs[d.Name()]; dep && p != root && !s.includeDeps {
+				skipped++
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if !d.Type().IsRegular() {
@@ -269,7 +286,7 @@ func (s *Scanner) best(in []ScanResult) []ScanResult {
 			out = append(out, r)
 			continue
 		}
-		if better(r, out[i]) {
+		if Better(r, out[i]) {
 			out[i] = r
 		}
 	}
@@ -286,31 +303,28 @@ func runIndicators(data []byte, indicators []sig.Indicator) []IndicatorHit {
 	if len(indicators) == 0 {
 		return nil
 	}
-	if len(data) < concurrentIndicatorFloor || len(indicators) == 1 {
-		var hits []IndicatorHit
-		for i := range indicators {
-			if n := indicators[i].Count(data); n > 0 {
-				hits = append(hits, IndicatorHit{Indicator: indicators[i].Name, MatchCount: n, Weight: indicators[i].Weight})
-			}
-		}
-		return hits
-	}
-
 	counts := make([]int, len(indicators))
-	var wg sync.WaitGroup
-	for i := range indicators {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			counts[i] = indicators[i].Count(data)
-		}(i)
+	values := make([]float64, len(indicators))
+	if len(data) < concurrentIndicatorFloor || len(indicators) == 1 {
+		for i := range indicators {
+			counts[i], values[i] = indicators[i].Eval(data)
+		}
+	} else {
+		var wg sync.WaitGroup
+		for i := range indicators {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				counts[i], values[i] = indicators[i].Eval(data)
+			}(i)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 
 	var hits []IndicatorHit
 	for i := range indicators {
 		if counts[i] > 0 {
-			hits = append(hits, IndicatorHit{Indicator: indicators[i].Name, MatchCount: counts[i], Weight: indicators[i].Weight})
+			hits = append(hits, IndicatorHit{Indicator: indicators[i].Name, MatchCount: counts[i], Weight: indicators[i].Weight, Value: values[i]})
 		}
 	}
 	return hits

@@ -372,7 +372,7 @@ func scanRepoBlobs(ctx context.Context, client *gh.Client, scanner *scan.Scanner
 				found := false
 				for _, sg := range scanner.Catalog().For(b.Path) {
 					res := scanner.ScanBytes(b.Path, data, sg)
-					if !found || res.TotalScore > best.TotalScore {
+					if !found || scan.Better(res, best.ScanResult) {
 						best = report.Entry{ScanResult: res, Repository: repo.FullName, URL: blobURL(repo, b), Origin: origin}
 						found = true
 					}
@@ -436,7 +436,7 @@ func scanRepoTarball(ctx context.Context, client *gh.Client, scanner *scan.Scann
 		found := false
 		for _, sg := range scanner.Catalog().For(f.Path) {
 			res := scanner.ScanBytes(f.Path, f.Data, sg)
-			if !found || res.TotalScore > best.TotalScore {
+			if !found || scan.Better(res, best.ScanResult) {
 				best = report.Entry{ScanResult: res, Repository: repo.FullName, URL: blobURL(repo, entry), Origin: "tarball"}
 				found = true
 			}

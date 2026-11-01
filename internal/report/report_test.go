@@ -21,17 +21,22 @@ func sample() *report.Report {
 	flagged.FileSHA256 = "72d765b9be76ba841ec95548368bf9a67c9ea3823ae064d8d0beff66c4598bd9"
 	flagged.FileSize = 28607
 	flagged.Verdict = scan.VerdictMalicious
+	flagged.Confidence = scan.ConfidenceHigh
 	flagged.TotalScore = 140
 	flagged.Threshold = 60
 	flagged.Signature = "pymapper-fs-loader"
 	flagged.Family = "PyMapper"
 	flagged.Severity = sig.SeverityCritical
-	flagged.Hits = []scan.IndicatorHit{{Indicator: "xor_decoder_lambda", MatchCount: 1, Weight: 40}}
+	flagged.Hits = []scan.IndicatorHit{
+		{Indicator: "xor_decoder_lambda", MatchCount: 1, Weight: 40},
+		{Indicator: "longest_line", MatchCount: 1, Weight: 15, Value: 1125036},
+	}
 
 	suspicious := report.Entry{}
 	suspicious.FilePath = "utils/xor.py"
 	suspicious.FileSHA256 = strings.Repeat("a", 64)
 	suspicious.Verdict = scan.VerdictSuspicious
+	suspicious.Confidence = scan.ConfidenceMedium
 	suspicious.TotalScore = 40
 	suspicious.Threshold = 60
 	suspicious.Signature = "pymapper-fs-loader"
@@ -106,6 +111,15 @@ func TestCLIHidesCleanFilesByDefault(t *testing.T) {
 	if !strings.Contains(out, "+ xor_decoder_lambda x1  (+40)") {
 		t.Error("indicator evidence is missing")
 	}
+	if !strings.Contains(out, "+ longest_line = 1125036  (+15)") {
+		t.Error("metric indicators must print their measured value")
+	}
+	if !strings.Contains(out, "HIGH    MALICIOUS (PyMapper)") {
+		t.Errorf("the confidence column is missing:\n%s", out)
+	}
+	if !strings.Contains(out, "MEDIUM  SUSPICIOUS") {
+		t.Errorf("suspicious entries must carry MEDIUM confidence:\n%s", out)
+	}
 	if !strings.Contains(out, "Signatures: pymapper-fs-loader@1") {
 		t.Error("the signature footer is missing")
 	}
@@ -142,13 +156,15 @@ func TestJSONShape(t *testing.T) {
 			SHA256     string `json:"sha256"`
 			Size       int64  `json:"size"`
 			Verdict    string `json:"verdict"`
+			Confidence string `json:"confidence"`
 			Signature  string `json:"signature"`
 			TotalScore int    `json:"total_score"`
 			Repository string `json:"repository"`
 			Hits       []struct {
-				Indicator string `json:"indicator"`
-				Count     int    `json:"count"`
-				Weight    int    `json:"weight"`
+				Indicator string  `json:"indicator"`
+				Count     int     `json:"count"`
+				Weight    int     `json:"weight"`
+				Value     float64 `json:"value"`
 			} `json:"hits"`
 		} `json:"results"`
 		Summary struct {
@@ -180,7 +196,10 @@ func TestJSONShape(t *testing.T) {
 	if first.Repository != "kloxeld/xscrape" {
 		t.Errorf("repository = %q", first.Repository)
 	}
-	if len(first.Hits) != 1 || first.Hits[0].Weight != 40 {
+	if first.Confidence != "high" {
+		t.Errorf("confidence = %q, want high", first.Confidence)
+	}
+	if len(first.Hits) != 2 || first.Hits[0].Weight != 40 || first.Hits[1].Value != 1125036 {
 		t.Errorf("hits = %+v", first.Hits)
 	}
 	if doc.Summary.Scanned != 3 || doc.Summary.Flagged != 1 || doc.Summary.Clean != 1 {
@@ -210,9 +229,11 @@ func TestMarkdownStructure(t *testing.T) {
 		"### `pymapper-fs-loader` (v1)",
 		"Operation CLAUDEIUS",
 		"## Findings",
-		"| 140 | MALICIOUS | `pymapper-fs-loader` |",
+		"| 140 | HIGH | MALICIOUS | `pymapper-fs-loader` |",
 		"- SHA-256: `72d765b9",
-		"| `xor_decoder_lambda` | 1 | +40 |",
+		"| `xor_decoder_lambda` | 1 | - | +40 |",
+		"| `longest_line` | 1 | 1125036 | +15 |",
+		"| 40 | MEDIUM | `pymapper-fs-loader` |",
 		"## Suspicious (below threshold, above half)",
 	} {
 		if !strings.Contains(out, want) {

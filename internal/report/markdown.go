@@ -39,6 +39,7 @@ func writeMarkdown(w io.Writer, rep *Report) error {
 	md.line("| Files scanned | %d |\n", rep.Summary.Scanned)
 	md.line("| Flagged | %d |\n", rep.Summary.Flagged)
 	md.line("| Suspicious | %d |\n", rep.Summary.Suspicious)
+	md.line("| Low signal | %d |\n", rep.Summary.LowSignal)
 	md.line("| Clean | %d |\n", rep.Summary.Clean)
 	if rep.Summary.Skipped > 0 {
 		md.line("| Skipped | %d |\n", rep.Summary.Skipped)
@@ -82,9 +83,9 @@ func writeMarkdown(w io.Writer, rep *Report) error {
 		return md.err
 	}
 
-	md.line("| Score | Verdict | Signature | File |\n|---:|---|---|---|\n")
+	md.line("| Score | Confidence | Verdict | Signature | File |\n|---:|---|---|---|---|\n")
 	for _, e := range flagged {
-		md.line("| %d | %s | `%s` | `%s` |\n", e.TotalScore, strings.ToUpper(e.Verdict.String()), e.Signature, displayPath(e))
+		md.line("| %d | %s | %s | `%s` | `%s` |\n", e.TotalScore, confidenceLabel(e.Confidence), strings.ToUpper(e.Verdict.String()), e.Signature, displayPath(e))
 	}
 	md.line("\n")
 
@@ -104,9 +105,13 @@ func writeMarkdown(w io.Writer, rep *Report) error {
 			md.line("- Retrieved via: %s\n", e.Origin)
 		}
 		if len(e.Hits) > 0 {
-			md.line("\n| Indicator | Matches | Weight |\n|---|---:|---:|\n")
+			md.line("\n| Indicator | Matches | Value | Weight |\n|---|---:|---:|---:|\n")
 			for _, h := range e.Hits {
-				md.line("| `%s` | %d | +%d |\n", h.Indicator, h.MatchCount, h.Weight)
+				value := "-"
+				if h.Value != 0 {
+					value = formatValue(h.Value)
+				}
+				md.line("| `%s` | %d | %s | +%d |\n", h.Indicator, h.MatchCount, value, h.Weight)
 			}
 		}
 		md.line("\n")
@@ -120,9 +125,9 @@ func writeMarkdown(w io.Writer, rep *Report) error {
 	}
 	if len(suspicious) > 0 {
 		md.line("## Suspicious (below threshold, above half)\n\n")
-		md.line("| Score | Signature | File |\n|---:|---|---|\n")
+		md.line("| Score | Confidence | Signature | File |\n|---:|---|---|---|\n")
 		for _, e := range suspicious {
-			md.line("| %d | `%s` | `%s` |\n", e.TotalScore, e.Signature, displayPath(e))
+			md.line("| %d | %s | `%s` | `%s` |\n", e.TotalScore, confidenceLabel(e.Confidence), e.Signature, displayPath(e))
 		}
 		md.line("\n")
 	}

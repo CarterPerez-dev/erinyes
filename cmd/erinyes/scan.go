@@ -29,6 +29,7 @@ func newScanCommand(g *globals) *cobra.Command {
 	var (
 		workers     int
 		maxFileSize int64
+		includeDeps bool
 	)
 
 	cmd := &cobra.Command{
@@ -43,7 +44,7 @@ func newScanCommand(g *globals) *cobra.Command {
 				return err
 			}
 
-			scanner := scan.New(g.catalog, scan.WithWorkers(workers), scan.WithMaxFileSize(maxFileSize))
+			scanner := scan.New(g.catalog, scan.WithWorkers(workers), scan.WithMaxFileSize(maxFileSize), scan.WithDependencyDirs(includeDeps))
 			results, summary, err := scanner.ScanPath(cmd.Context(), args[0])
 			if err != nil {
 				return fail(exitToolError, "scan %s: %w", args[0], err)
@@ -78,5 +79,6 @@ func newScanCommand(g *globals) *cobra.Command {
 
 	cmd.Flags().IntVar(&workers, "workers", 0, "number of concurrent file workers (default: one per CPU)")
 	cmd.Flags().Int64Var(&maxFileSize, "max-file-size", scan.DefaultMaxFileSize, "skip files larger than this many bytes")
+	cmd.Flags().BoolVar(&includeDeps, "include-deps", false, "also walk installed dependency directories (node_modules, virtualenvs, site-packages)")
 	return cmd
 }

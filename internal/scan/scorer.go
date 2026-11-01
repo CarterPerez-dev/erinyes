@@ -24,12 +24,28 @@ func Classify(score int, s *sig.Signature) Verdict {
 	}
 }
 
-func better(a, b ScanResult) bool {
+func Rate(v Verdict, score int, knownHash bool) Confidence {
+	switch {
+	case knownHash || v == VerdictMalicious:
+		return ConfidenceHigh
+	case v == VerdictSuspicious:
+		return ConfidenceMedium
+	case score > 0:
+		return ConfidenceLow
+	default:
+		return ConfidenceNone
+	}
+}
+
+func Better(a, b ScanResult) bool {
 	if a.Verdict != b.Verdict {
 		return a.Verdict > b.Verdict
 	}
-	if a.TotalScore != b.TotalScore {
-		return a.TotalScore > b.TotalScore
+	if (a.KnownHash != "") != (b.KnownHash != "") {
+		return a.KnownHash != ""
 	}
-	return a.Severity.Rank() > b.Severity.Rank()
+	if a.Severity.Rank() != b.Severity.Rank() {
+		return a.Severity.Rank() > b.Severity.Rank()
+	}
+	return a.TotalScore > b.TotalScore
 }

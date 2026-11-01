@@ -6,6 +6,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -93,19 +94,19 @@ func writeCLI(w io.Writer, rep *Report, opts Options) error {
 	}
 
 	if len(visible) > 0 {
-		cw.plain("%5s  %-28s  %s\n", "SCORE", "VERDICT", "FILE")
-		cw.plain("%s\n", strings.Repeat("-", 78))
+		cw.plain("%5s  %-6s  %-28s  %s\n", "SCORE", "CONF", "VERDICT", "FILE")
+		cw.plain("%s\n", strings.Repeat("-", 86))
 	}
 
 	for _, e := range visible {
 		if e.Err != nil {
-			cw.tinted(colErr, fmt.Sprintf("%5s  %-28s  ", "-", "ERROR"))
+			cw.tinted(colErr, fmt.Sprintf("%5s  %-6s  %-28s  ", "-", "-", "ERROR"))
 			cw.plain("%s\n", displayPath(e))
 			cw.plain("         %s\n", e.ErrMessage)
 			continue
 		}
 
-		cw.tinted(verdictColor(e.Verdict), fmt.Sprintf("%5d  %-28s  ", e.TotalScore, verdictLabel(e)))
+		cw.tinted(verdictColor(e.Verdict), fmt.Sprintf("%5d  %-6s  %-28s  ", e.TotalScore, confidenceLabel(e.Confidence), verdictLabel(e)))
 		cw.plain("%s\n", displayPath(e))
 
 		if e.KnownHash != "" {
@@ -114,6 +115,10 @@ func writeCLI(w io.Writer, rep *Report, opts Options) error {
 		for _, h := range e.Hits {
 			cw.plain("         + ")
 			cw.tinted(colIndicator, h.Indicator)
+			if h.Value != 0 {
+				cw.plain(" = %s  (+%d)\n", formatValue(h.Value), h.Weight)
+				continue
+			}
 			cw.plain(" x%d  (+%d)\n", h.MatchCount, h.Weight)
 		}
 		if e.URL != "" {
@@ -132,6 +137,9 @@ func writeCLI(w io.Writer, rep *Report, opts Options) error {
 	if s.Suspicious > 0 {
 		cw.plain("Suspicious: %d\n", s.Suspicious)
 	}
+	if s.LowSignal > 0 && !opts.Verbose {
+		cw.plain("Low signal: %d (weak indicators only, use -v to show)\n", s.LowSignal)
+	}
 	if hidden > 0 {
 		cw.plain("Hidden: %d (clean or errored, use -v to show)\n", hidden)
 	}
@@ -145,6 +153,20 @@ func writeCLI(w io.Writer, rep *Report, opts Options) error {
 	cw.plain("Elapsed: %dms\n", s.DurationMS)
 
 	return cw.err
+}
+
+func confidenceLabel(c scan.Confidence) string {
+	if c == scan.ConfidenceNone {
+		return "-"
+	}
+	return strings.ToUpper(c.String())
+}
+
+func formatValue(v float64) string {
+	if v == float64(int64(v)) {
+		return strconv.FormatInt(int64(v), 10)
+	}
+	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
 func displayPath(e Entry) string {
