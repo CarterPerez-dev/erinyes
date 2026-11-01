@@ -1,0 +1,60 @@
+# ©AngelaMos | 2026
+# vscode_autorun_task.yaml
+
+id: vscode-autorun-task
+version: 1
+family: Generic
+severity: high
+confidence_threshold: 50
+file_patterns: ["tasks.json"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  VS Code tasks with "runOn": "folderOpen" execute when a trusted workspace is
+  opened. Trojanized interview and take-home repositories use this to run a
+  download command the moment the folder is opened, often hiding the command
+  behind long whitespace padding and a never-reveal terminal. A folderOpen
+  task alone is reported as suspicious; combined with a downloader or
+  interpreter one-liner it is reported as malicious.
+references:
+  - "MITRE ATT&CK: T1204.002 User Execution: Malicious File"
+  - "https://code.visualstudio.com/docs/editor/tasks#_run-behavior"
+
+indicators:
+  - name: runs_on_folder_open
+    weight: 25
+    type: regex
+    pattern: '"runOn"\s*:\s*"folderOpen"'
+
+  - name: download_or_inline_interpreter_command
+    weight: 30
+    type: regex
+    pattern: '"(command|args)"\s*:\s*\[?\s*"[^"]*(curl|wget|Invoke-WebRequest|iwr\s|irm\s|DownloadString|\|\s*(ba)?sh|node\s+-e|python3?\s+-c|mshta|certutil)'
+
+  - name: hidden_terminal
+    weight: 10
+    type: regex
+    pattern: '"reveal"\s*:\s*"never"'
+
+  - name: echo_disabled
+    weight: 5
+    type: regex
+    pattern: '"echo"\s*:\s*false'
+
+  - name: whitespace_padded_value
+    weight: 20
+    type: regex
+    pattern: '[ \t]{150,}\S'
+
+  - name: line_off_screen
+    weight: 15
+    type: metric
+    metric: max_line_length
+    min: 1000
+
+retrohunt:
+  github_queries:
+    - '"folderOpen" "curl" filename:tasks.json'
+    - '"folderOpen" "node -e" filename:tasks.json'
+  rate_limit_rps: 0.17

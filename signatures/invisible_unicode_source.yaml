@@ -1,0 +1,53 @@
+# ©AngelaMos | 2026
+# invisible_unicode_source.yaml
+
+id: invisible-unicode-source
+version: 1
+family: Generic
+severity: high
+confidence_threshold: 40
+file_patterns: ["*.py", "*.js", "*.mjs", "*.cjs", "*.jsx", "*.ts", "*.tsx", "*.go", "*.rs", "*.c", "*.h", "*.cc", "*.cpp", "*.hpp", "*.java", "*.kt", "*.cs", "*.rb", "*.php", "*.lua", "*.sh", "*.ps1", "*.swift"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  Source code that renders differently from how it executes. Bidirectional
+  control characters can reorder code on screen (Trojan Source,
+  CVE-2021-42574), and zero-width, tag and variation-selector runes can carry
+  a payload that is invisible in editors and code review. Emoji joiners and
+  the basic variation selectors used by emoji are not counted. A few
+  invisible runes are suspicious; hundreds, or a decoder that maps them back
+  to bytes, are reported as malicious.
+references:
+  - "CVE-2021-42574 Trojan Source"
+  - "MITRE ATT&CK: T1027 Obfuscated Files or Information"
+
+indicators:
+  - name: bidi_controls_present
+    weight: 15
+    type: metric
+    metric: bidi_controls
+    min: 1
+
+  - name: invisible_runes_present
+    weight: 20
+    type: metric
+    metric: invisible_runes
+    min: 5
+
+  - name: invisible_runes_bulk
+    weight: 25
+    type: metric
+    metric: invisible_runes
+    min: 100
+
+  - name: variation_selector_decoder
+    weight: 10
+    type: regex
+    pattern: '(?i)0xE0100|\\u\{E01|\\U000E01'
+
+retrohunt:
+  github_queries:
+    - '"0xE0100" "codePointAt" language:javascript'
+    - '"0xE0100" "eval" language:javascript'
+  rate_limit_rps: 0.17

@@ -1,0 +1,91 @@
+# ©AngelaMos | 2026
+# script_download_execute.yaml
+
+id: script-download-execute
+version: 1
+family: Generic
+severity: medium
+confidence_threshold: 60
+file_patterns: ["*.sh", "*.bash", "*.zsh", "*.command", "*.ps1", "*.psm1", "*.bat", "*.cmd", "Makefile", "makefile", "*.mk", "justfile"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  Shell, PowerShell, batch and make files that fetch and execute remote code.
+  Piping an installer into a shell is common in legitimate setup scripts, so
+  it is weighted low. PowerShell download cradles, encoded commands, LOLBin
+  downloads, hidden windows and persistence carry more weight, and a
+  malicious verdict needs several of them together.
+references:
+  - "MITRE ATT&CK: T1059.001 PowerShell"
+  - "MITRE ATT&CK: T1059.004 Unix Shell"
+  - "MITRE ATT&CK: T1105 Ingress Tool Transfer"
+  - "MITRE ATT&CK: T1218 System Binary Proxy Execution"
+
+indicators:
+  - name: curl_pipe_shell
+    weight: 25
+    type: regex
+    pattern: '(curl|wget)[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z)?sh\b'
+
+  - name: powershell_download_cradle
+    weight: 35
+    type: regex
+    pattern: '(?i)(\biex\b|invoke-expression)\s*\(?\s*(\(?\s*new-object\s+(system\.)?net\.webclient\s*\)?|iwr\b|irm\b|invoke-webrequest|invoke-restmethod)'
+
+  - name: powershell_encoded_command
+    weight: 35
+    type: regex
+    pattern: '(?i)(powershell|pwsh)(\.exe)?[^\n]{0,80}\s-(e|en|enc|encodedcommand)\s+[A-Za-z0-9+/=]{40,}'
+
+  - name: hidden_window
+    weight: 15
+    type: regex
+    pattern: '(?i)\s-(w|windowstyle)\s+hidden\b'
+
+  - name: execution_policy_bypass
+    weight: 10
+    type: regex
+    pattern: '(?i)\s-(ep|executionpolicy)\s+bypass\b'
+
+  - name: lolbin_download
+    weight: 35
+    type: regex
+    pattern: '(?i)\b(certutil(\.exe)?\s+[^\n]{0,40}-urlcache|bitsadmin(\.exe)?\s+/transfer|mshta(\.exe)?\s+https?:|regsvr32(\.exe)?\s+/s\s+/n\s+/u\s+/i:)'
+
+  - name: base64_decode_into_shell
+    weight: 30
+    type: regex
+    pattern: 'base64\s+(-d|--decode|-D)[^\n]{0,60}\|\s*(ba|z)?sh\b'
+
+  - name: run_from_tmp
+    weight: 15
+    type: regex
+    pattern: 'chmod\s+\+x\s+/tmp/|(?i)%TEMP%\\[^\s"]+\.(exe|scr|dll)'
+
+  - name: persistence
+    weight: 15
+    type: regex
+    pattern: '(?i)crontab\s+-|LaunchAgents/|schtasks(\.exe)?\s+/create|CurrentVersion\\Run\b|systemctl\s+enable\s+--now'
+
+  - name: discord_webhook
+    weight: 20
+    type: regex
+    pattern: 'discord(app)?\.com/api/webhooks/'
+
+  - name: telegram_bot_api
+    weight: 20
+    type: regex
+    pattern: 'api\.telegram\.org/bot'
+
+  - name: high_entropy_line
+    weight: 15
+    type: metric
+    metric: max_line_entropy
+    min: 5.6
+
+retrohunt:
+  github_queries:
+    - '"IEX (New-Object Net.WebClient).DownloadString" extension:ps1'
+    - '"certutil -urlcache" extension:bat'
+  rate_limit_rps: 0.17

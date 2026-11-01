@@ -1,0 +1,59 @@
+# ©AngelaMos | 2026
+# msbuild_build_event.yaml
+
+id: msbuild-build-event
+version: 1
+family: Generic
+severity: high
+confidence_threshold: 50
+file_patterns: ["*.csproj", "*.vbproj", "*.fsproj", "*.vcxproj", "*.props", "*.targets"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  MSBuild project files can run arbitrary commands on build through
+  PreBuildEvent, PostBuildEvent and Exec tasks. Trojanized exploit and tool
+  repositories use this so the payload runs when the victim builds the
+  solution in Visual Studio. Build events that copy files are normal; build
+  events that call PowerShell, download utilities or LOLBins, or carry
+  encoded blobs, are not.
+references:
+  - "MITRE ATT&CK: T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild"
+  - "MITRE ATT&CK: T1059.001 PowerShell"
+
+indicators:
+  - name: build_event_present
+    weight: 10
+    type: regex
+    pattern: '<(PreBuildEvent|PostBuildEvent)>\s*\S'
+
+  - name: build_event_runs_downloader_or_lolbin
+    weight: 40
+    type: regex
+    pattern: '(?i)<(PreBuildEvent|PostBuildEvent)>[^<]*(powershell|pwsh|curl|wget|bitsadmin|certutil|mshta|rundll32|regsvr32|cscript|wscript)'
+
+  - name: exec_task_runs_downloader_or_lolbin
+    weight: 40
+    type: regex
+    pattern: '(?i)<Exec\s[^>]*Command\s*=\s*"[^"]*(powershell|pwsh|curl|wget|bitsadmin|certutil|mshta|rundll32|regsvr32|downloadstring)'
+
+  - name: hidden_or_encoded_powershell
+    weight: 20
+    type: regex
+    pattern: '(?i)\s-(enc|encodedcommand|w\s+hidden|windowstyle\s+hidden|ep\s+bypass|executionpolicy\s+bypass)\b'
+
+  - name: embedded_base64_blob
+    weight: 15
+    type: regex
+    pattern: '[A-Za-z0-9+/]{500,}={0,2}'
+
+  - name: inline_task_code
+    weight: 10
+    type: regex
+    pattern: '<UsingTask\s[^>]*TaskFactory\s*=\s*"(CodeTaskFactory|RoslynCodeTaskFactory)"'
+
+retrohunt:
+  github_queries:
+    - '"PreBuildEvent" "powershell" extension:csproj'
+    - '"PostBuildEvent" "-enc" extension:csproj'
+  rate_limit_rps: 0.17

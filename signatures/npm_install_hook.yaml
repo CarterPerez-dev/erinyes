@@ -1,0 +1,60 @@
+# ©AngelaMos | 2026
+# npm_install_hook.yaml
+
+id: npm-install-hook
+version: 1
+family: Generic
+severity: high
+confidence_threshold: 50
+file_patterns: ["package.json"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  package.json lifecycle scripts run automatically on npm, pnpm or yarn
+  install, before the victim reads any source. Many legitimate packages use
+  prepare or postinstall for builds, so a bare lifecycle script is only a
+  weak signal. A lifecycle script that downloads, decodes or evaluates code
+  inline is the install-time execution pattern used by malicious packages and
+  trojanized repositories.
+references:
+  - "MITRE ATT&CK: T1195.002 Compromise Software Supply Chain"
+  - "MITRE ATT&CK: T1059.007 JavaScript"
+  - "https://docs.npmjs.com/cli/using-npm/scripts#life-cycle-scripts"
+
+indicators:
+  - name: lifecycle_script_present
+    weight: 10
+    type: regex
+    pattern: '"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"'
+
+  - name: lifecycle_downloads_or_shells_out
+    weight: 40
+    type: regex
+    pattern: '"(preinstall|install|postinstall|prepare)"\s*:\s*"[^"]*(curl|wget|powershell|Invoke-WebRequest|iwr\s|certutil|bitsadmin|bash\s+-c|sh\s+-c|\|\s*(ba)?sh)'
+
+  - name: lifecycle_inline_eval
+    weight: 35
+    type: regex
+    pattern: '"(preinstall|install|postinstall|prepare)"\s*:\s*"(node|python3?)\s+(-e|-c|--eval)\b'
+
+  - name: lifecycle_runs_hidden_file
+    weight: 20
+    type: regex
+    pattern: '"(preinstall|install|postinstall|prepare)"\s*:\s*"node\s+(\./)?([A-Za-z0-9_-]+/)*\.[A-Za-z0-9_-]+'
+
+  - name: lifecycle_suppresses_output
+    weight: 10
+    type: regex
+    pattern: '"(preinstall|install|postinstall)"\s*:\s*"[^"]*(>\s*/dev/null|2>&1|>\s*nul\b|\|\|\s*true)'
+
+  - name: dependency_from_url
+    weight: 10
+    type: regex
+    pattern: '"[^"]+"\s*:\s*"(https?://[^"]+\.(tgz|tar\.gz)|git\+https?://|github:)'
+
+retrohunt:
+  github_queries:
+    - '"postinstall" "curl" filename:package.json'
+    - '"preinstall" "node -e" filename:package.json'
+  rate_limit_rps: 0.17

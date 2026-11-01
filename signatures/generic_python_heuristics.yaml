@@ -1,0 +1,175 @@
+# ©AngelaMos | 2026
+# generic_python_heuristics.yaml
+
+id: generic-python-heuristics
+version: 1
+family: Generic
+severity: medium
+confidence_threshold: 70
+file_patterns: ["*.py", "*.pyw"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  Family-agnostic heuristics for trojanized Python in GitHub repositories.
+  Every indicator is a weak signal that legitimate code can also produce, so
+  no single indicator reaches the threshold. A file is reported malicious only
+  when several independent traits co-occur, such as decoded or downloaded code
+  being executed together with persistence, credential-store paths or an
+  exfiltration endpoint. Low and medium confidence results are leads to read,
+  not verdicts.
+references:
+  - "MITRE ATT&CK: T1027 Obfuscated Files or Information"
+  - "MITRE ATT&CK: T1059.006 Python"
+  - "MITRE ATT&CK: T1105 Ingress Tool Transfer"
+  - "MITRE ATT&CK: T1547.001 Registry Run Keys / Startup Folder"
+  - "MITRE ATT&CK: T1555.003 Credentials from Web Browsers"
+  - "MITRE ATT&CK: T1567 Exfiltration Over Web Service"
+
+indicators:
+  - name: exec_of_decoded_data
+    weight: 30
+    type: regex
+    pattern: '\b(exec|eval)\s*\(\s*(__import__\s*\(\s*["''])?(base64|zlib|marshal|bz2|lzma|codecs|binascii)\b'
+
+  - name: exec_of_downloaded_code
+    weight: 40
+    type: regex
+    pattern: '\b(exec|eval)\s*\(\s*(requests\.(get|post)|urllib\.request\.urlopen|urlopen|httpx\.get)\s*\('
+
+  - name: marshal_loads
+    weight: 20
+    type: regex
+    pattern: '\bmarshal\.loads\s*\('
+
+  - name: exec_compile
+    weight: 15
+    type: regex
+    pattern: '\bexec\s*\(\s*compile\s*\('
+
+  - name: nested_decode_chain
+    weight: 20
+    type: regex
+    pattern: '(b64decode|b32decode|b85decode|decompress|unhexlify)\s*\(\s*[A-Za-z_][A-Za-z0-9_.]*\.(b64decode|b32decode|b85decode|decompress|unhexlify)\s*\('
+
+  - name: dunder_import_of_sensitive_module
+    weight: 15
+    type: regex
+    pattern: '__import__\s*\(\s*["''](base64|zlib|marshal|ctypes|subprocess|socket|winreg)["'']\s*\)'
+
+  - name: large_base64_literal
+    weight: 15
+    type: regex
+    pattern: '["''][A-Za-z0-9+/]{1000}'
+
+  - name: long_hex_escape_run
+    weight: 15
+    type: regex
+    pattern: '(\\x[0-9a-fA-F]{2}){200,}'
+
+  - name: pyarmor_runtime
+    weight: 15
+    type: regex
+    pattern: '__pyarmor__|pyarmor_runtime'
+
+  - name: shell_download_pipe
+    weight: 30
+    type: regex
+    pattern: '(curl|wget)\s[^\n"'']{0,200}\|\s*(sudo\s+)?(ba|z)?sh\b'
+
+  - name: powershell_download_or_encoded
+    weight: 30
+    type: regex
+    pattern: '(?i)powershell(\.exe)?[^\n]{0,120}(-e(nc|ncodedcommand)?\s+[A-Za-z0-9+/=]{40,}|downloadstring|invoke-expression|\biex\b|invoke-webrequest)'
+
+  - name: windows_memory_execution_api
+    weight: 25
+    type: regex
+    pattern: 'windll\.kernel32\.(VirtualAlloc|VirtualProtect|CreateThread|RtlMoveMemory|WriteProcessMemory|CreateRemoteThread)'
+
+  - name: hidden_process_flags
+    weight: 10
+    type: regex
+    pattern: 'CREATE_NO_WINDOW|DETACHED_PROCESS|0x08000000'
+
+  - name: registry_run_key
+    weight: 20
+    type: regex
+    pattern: '(?i)CurrentVersion\\+Run(Once)?\b'
+
+  - name: scheduled_task_or_startup_folder
+    weight: 15
+    type: regex
+    pattern: '(?i)schtasks(\.exe)?["''\s,]+/create|Start Menu\\+Programs\\+Startup|LaunchAgents/|crontab\s+-'
+
+  - name: browser_credential_store
+    weight: 25
+    type: regex
+    pattern: '(Chrome|Edge|Brave-Browser|BraveSoftware|Opera|Vivaldi|Chromium)[^\n]{0,80}(Login Data|Local State|Web Data|Cookies)'
+
+  - name: wallet_extension_ids
+    weight: 25
+    type: regex
+    pattern: 'nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|hnfanknocfeofbddgcijnmhnfnkdnaad|fhbohimaelbohpjbbldcngcnapndodjp|ibnejdfjmmkpcnlpebklmnkoeoihofec|egjidjbpglichdcondbcbdnbeeppgdph'
+
+  - name: wallet_or_session_paths
+    weight: 15
+    type: regex
+    pattern: '(?i)(Exodus\\+exodus\.wallet|Electrum\\+wallets|atomic\\+Local Storage|Telegram Desktop\\+tdata|discord\\+Local Storage\\+leveldb)'
+
+  - name: discord_webhook
+    weight: 20
+    type: regex
+    pattern: 'discord(app)?\.com/api/webhooks/'
+
+  - name: telegram_bot_api
+    weight: 20
+    type: regex
+    pattern: 'api\.telegram\.org/bot'
+
+  - name: sandbox_or_debugger_check
+    weight: 15
+    type: regex
+    pattern: 'IsDebuggerPresent|CheckRemoteDebuggerPresent|vboxservice|vmtoolsd|SbieDll|VBoxTray'
+
+  - name: setup_install_hook_override
+    weight: 15
+    type: regex
+    pattern: 'cmdclass\s*=\s*\{[^}]*["''](install|develop|egg_info)["'']'
+
+  - name: oversized_python_file
+    weight: 15
+    type: metric
+    metric: file_size
+    min: 500000
+
+  - name: line_off_screen
+    weight: 15
+    type: metric
+    metric: max_line_length
+    min: 5000
+
+  - name: high_entropy_line
+    weight: 15
+    type: metric
+    metric: max_line_entropy
+    min: 5.6
+
+  - name: invisible_runes_present
+    weight: 20
+    type: metric
+    metric: invisible_runes
+    min: 5
+
+  - name: bidi_controls_present
+    weight: 20
+    type: metric
+    metric: bidi_controls
+    min: 1
+
+retrohunt:
+  github_queries:
+    - '"exec(base64.b64decode" language:python'
+    - '"exec(requests.get" language:python'
+    - '"marshal.loads" "exec(" language:python'
+  rate_limit_rps: 0.17

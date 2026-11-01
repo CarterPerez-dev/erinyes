@@ -151,7 +151,8 @@ func TestSignaturesList(t *testing.T) {
 	}
 	for _, want := range []string{
 		"pymapper-fs-loader", "pymapper-embedded-pe", "cross-platform-curl-pipe-dropper",
-		"python-subprocess-sibling-activation", "PyMapper", "critical", "4 signature(s) loaded",
+		"python-subprocess-sibling-activation", "generic-python-heuristics", "npm-install-hook",
+		"vscode-autorun-task", "PyMapper", "Generic", "critical", "11 signature(s) loaded",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output is missing %q:\n%s", want, out)
@@ -261,7 +262,7 @@ func TestVersionReportsCatalog(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit code = %d", code)
 	}
-	for _, want := range []string{"erinyes", "catalog", "go ", "signatures 4 loaded"} {
+	for _, want := range []string{"erinyes", "catalog", "go ", "signatures 11 loaded"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("version output is missing %q:\n%s", want, out)
 		}

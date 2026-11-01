@@ -1,0 +1,8 @@
+{
+  "name": "benign-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "husky",
+    "build": "tsc -p ."
+  }
+}

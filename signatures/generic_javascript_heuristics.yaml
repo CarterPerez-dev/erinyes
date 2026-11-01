@@ -1,0 +1,122 @@
+# ©AngelaMos | 2026
+# generic_javascript_heuristics.yaml
+
+id: generic-javascript-heuristics
+version: 1
+family: Generic
+severity: medium
+confidence_threshold: 70
+file_patterns: ["*.js", "*.mjs", "*.cjs", "*.jsx", "*.ts", "*.tsx"]
+
+first_seen: 2026-11-01
+contributor: carterperez-dev
+description: >
+  Family-agnostic heuristics for trojanized JavaScript and TypeScript in
+  GitHub repositories, including the obfuscated loaders seen in fake
+  job-interview and web3 take-home repositories. Every indicator is a weak
+  signal on its own; minified bundles legitimately produce long lines and
+  dense code, so structural indicators carry little weight. A malicious
+  verdict needs obfuscation or remote code execution to co-occur with
+  credential-store access, wallet targeting or an exfiltration endpoint.
+references:
+  - "MITRE ATT&CK: T1027 Obfuscated Files or Information"
+  - "MITRE ATT&CK: T1059.007 JavaScript"
+  - "MITRE ATT&CK: T1555.003 Credentials from Web Browsers"
+  - "MITRE ATT&CK: T1567 Exfiltration Over Web Service"
+
+indicators:
+  - name: obfuscator_hex_identifiers
+    weight: 25
+    type: regex
+    pattern: '(var|const|let|function)\s+_0x[a-f0-9]{4,6}\b'
+
+  - name: eval_of_decoded_data
+    weight: 30
+    type: regex
+    pattern: '\b(eval|Function)\s*\(\s*(atob\s*\(|Buffer\.from\s*\()'
+
+  - name: new_function_constructor
+    weight: 10
+    type: regex
+    pattern: '\bnew\s+Function\s*\('
+
+  - name: eval_of_remote_response
+    weight: 35
+    type: regex
+    pattern: '(axios\.(get|post)|fetch|request|https?\.get)\s*\([^\n]{0,300}\beval\s*\('
+
+  - name: child_process_downloader
+    weight: 30
+    type: regex
+    pattern: '\b(exec|execSync|spawn|spawnSync)\s*\([^\n]{0,200}(curl|wget|powershell|Invoke-WebRequest|certutil|bitsadmin)'
+
+  - name: detached_hidden_child
+    weight: 15
+    type: regex
+    pattern: 'detached\s*:\s*true[^\n]{0,120}windowsHide\s*:\s*true|windowsHide\s*:\s*true[^\n]{0,120}detached\s*:\s*true'
+
+  - name: char_code_array_decoder
+    weight: 15
+    type: regex
+    pattern: 'String\.fromCharCode\s*\((\s*\d+\s*,){20,}'
+
+  - name: browser_credential_store
+    weight: 25
+    type: regex
+    pattern: '(Chrome|Edge|Brave-Browser|BraveSoftware|Opera|Vivaldi|Chromium)[^\n]{0,80}(Login Data|Local State|Web Data|Cookies)'
+
+  - name: wallet_extension_ids
+    weight: 25
+    type: regex
+    pattern: 'nkbihfbeogaeaoehlefnkodbefgpgknn|bfnaelmomeimhlpmgjnjophhpkkoljpa|hnfanknocfeofbddgcijnmhnfnkdnaad|fhbohimaelbohpjbbldcngcnapndodjp|ibnejdfjmmkpcnlpebklmnkoeoihofec|egjidjbpglichdcondbcbdnbeeppgdph'
+
+  - name: wallet_or_session_paths
+    weight: 15
+    type: regex
+    pattern: '(?i)(exodus\.wallet|Electrum[\\/]+wallets|atomic[\\/]+Local Storage|Telegram Desktop[\\/]+tdata|\.config[\\/]+solana[\\/]+id\.json)'
+
+  - name: discord_webhook
+    weight: 20
+    type: regex
+    pattern: 'discord(app)?\.com/api/webhooks/'
+
+  - name: telegram_bot_api
+    weight: 20
+    type: regex
+    pattern: 'api\.telegram\.org/bot'
+
+  - name: os_fingerprint_bundle
+    weight: 10
+    type: regex
+    pattern: 'os\.hostname\s*\(\)[^\n]{0,200}os\.(userInfo|platform|homedir)\s*\(\)'
+
+  - name: line_off_screen
+    weight: 5
+    type: metric
+    metric: max_line_length
+    min: 20000
+
+  - name: high_entropy_line
+    weight: 15
+    type: metric
+    metric: max_line_entropy
+    min: 5.8
+
+  - name: invisible_runes_present
+    weight: 25
+    type: metric
+    metric: invisible_runes
+    min: 5
+
+  - name: bidi_controls_present
+    weight: 20
+    type: metric
+    metric: bidi_controls
+    min: 1
+
+retrohunt:
+  github_queries:
+    - '"eval(atob(" language:javascript'
+    - '"api/webhooks" "Login Data" language:javascript'
+    - '"nkbihfbeogaeaoehlefnkodbefgpgknn" language:javascript'
+  rate_limit_rps: 0.17
