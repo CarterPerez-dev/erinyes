@@ -27,6 +27,9 @@
 ## What It Does
 
 - YAML signature catalog with per-indicator scoring and declared thresholds
+- Family signatures for PyMapper plus generic heuristics for trojanized Python, JavaScript, npm install hooks, VS Code auto-run tasks, MSBuild build events, shell and PowerShell droppers, and invisible Unicode
+- Structural checks for the things a reviewer misses: oversized source files, lines that run off the screen, high-entropy blobs, and hidden characters
+- Every result carries a confidence rating (low, medium, high), so weak signals surface as leads without being called malware
 - Three hunt modes: `scan` (local, zero network), `hunt` (GitHub code search), `sweep` (whole-repo tree walk via GitHub Trees API)
 - Repository monitoring with `watch`, persistent state, and optional webhook or Telegram notifications
 - GitHub metadata-pivot sweeps (`--query 'created:X pushed:Y'`) that catch samples code search never indexes
@@ -102,7 +105,9 @@ Full flag reference, env-var contract, GitHub token scopes, and sweep-rate tunin
 
 ## Status
 
-The catalog contains four signatures: two PyMapper loader signatures, a Python activation-helper heuristic, and a cross-platform dropper signature. Structural matches identify files for investigation; the activation-helper rule can also match legitimate subprocess code. Known hashes identify exact cataloged files. A clean result means no selected signature reached its threshold.
+The catalog contains eleven signatures. Four target specific families: two PyMapper loader signatures, a PyMapper activation-helper heuristic, and a cross-platform dropper. Seven are generic heuristics that look for traits shared by many trojanized repositories rather than one family.
+
+Read the confidence column before the verdict. `HIGH` means a signature reached its threshold or the file is a known sample. `MEDIUM` means suspicious: worth reading, not proof. `LOW` means one or more weak indicators matched; these are counted in the summary and shown with `-v`. Generic heuristics can produce low and medium results on legitimate code, and a clean result only means no signature reached its threshold.
 
 Signature authoring and scoring: [DOCS.md](DOCS.md#signature-authoring).
 

@@ -145,13 +145,17 @@ erinyes scan <path>
 |---|---|---|
 | `--workers <n>` | one per CPU | Concurrent file workers |
 | `--max-file-size <bytes>` | 16 MiB | Skip files larger than this |
+| `--include-deps` | off | Also walk installed dependency directories |
 
 **Behavior:**
 
 - A directory is walked recursively; only files matching at least one signature's `file_patterns` are scanned.
+- Installed dependency directories (`node_modules`, `bower_components`, `.venv`, `venv`, `site-packages`, `.tox`, `__pycache__`) are skipped below the scan root, because they hold code you installed rather than the repository's own code. Pass `--include-deps` to scan them, or name such a directory as the scan root. `sweep` always scans whatever a remote repository commits, including a committed `node_modules`.
 - A single explicitly named file is scanned against **every** loaded signature regardless of pattern.
 - Exit code 1 if anything is flagged; exit code 0 if the scan is clean. Lets you plug `erinyes scan` directly into CI.
 - Suspicious results below the malicious threshold do not trigger exit 1. Check the report's error and skipped-file totals when assessing coverage.
+- Every result has a confidence: `high` (malicious or a known hash), `medium` (suspicious), `low` (clean, but at least one weak indicator matched) or `none`. Low-signal files are hidden unless `-v` is set and are counted on the `Low signal:` summary line.
+- When several signatures score one file, the reported result is the strongest verdict. Among malicious results a known hash wins, then the higher-severity signature, so a family signature keeps its label over a generic heuristic. Below malicious, the higher score wins.
 
 **Examples:**
 
@@ -432,9 +436,29 @@ retrohunt:
   rate_limit_rps: 0.17
 ```
 
-IDs use lowercase letters, digits, and internal hyphens. Schema `version` is 1. Supply a family, severity (`critical`, `high`, `medium`, or `low`), file patterns, and at least one indicator. Indicators have unique `name` values, weights from 0 to 100, and a `literal` or Go/RE2 `regex` pattern. The default indicator type is `regex`; `ast` is reserved and rejected. Use `(?m)` when regex anchors must match each line.
+IDs use lowercase letters, digits, and internal hyphens. Schema `version` is 1. Supply a family, severity (`critical`, `high`, `medium`, or `low`), file patterns, and at least one indicator. Indicators have unique `name` values, weights from 0 to 100, and a `literal` or Go/RE2 `regex` pattern, or a `metric`. The default indicator type is `regex`; `ast` is reserved and rejected. Use `(?m)` when regex anchors must match each line. RE2 rejects repeat counts above 1000.
 
-`confidence_threshold` must be between 0 and 100 and no larger than the sum of weights. Each matching indicator contributes its weight once, regardless of occurrence count. Scores are not capped at 100 and are not probabilities. Scores at or above the threshold are `malicious`; scores at or above half the threshold, rounded down, are `suspicious`. Lower scores are `clean`. A known hash forces a malicious verdict without changing the indicator score.
+A `metric` indicator measures the file instead of matching text. It takes `metric` and `min` and no `pattern`, and fires when the measured value is at least `min`. Reports print the measured value next to the indicator.
+
+| Metric | Measures |
+|---|---|
+| `file_size` | File size in bytes |
+| `max_line_length` | Length in bytes of the longest line |
+| `max_line_entropy` | Highest Shannon entropy, in bits per byte, of any line of 256 bytes or more. Prose sits near 4.2, minified JavaScript near 5.2 and base64 near 6.0 |
+| `bidi_controls` | Count of bidirectional override and isolate characters (U+202A to U+202E, U+2066 to U+2069) |
+| `invisible_runes` | Count of zero-width, word-joiner, tag, supplementary variation-selector and Hangul filler characters. A leading BOM, emoji joiners and the basic emoji variation selectors are not counted |
+
+```yaml
+  - name: line_off_screen
+    weight: 15
+    type: metric
+    metric: max_line_length
+    min: 5000
+```
+
+Signatures with `family: Generic` are heuristics shared across families. Keep every generic indicator below the threshold so that a malicious verdict needs at least two independent traits; the test suite enforces this. Tune generic weights against large legitimate trees, such as a Python standard library, a `node_modules` directory and the Go module cache, and record the expected verdicts of new fixtures in `internal/scan/generic_test.go`.
+
+`confidence_threshold` must be between 0 and 100 and no larger than the sum of weights. Each matching indicator contributes its weight once, regardless of occurrence count. Scores are not capped at 100 and are not probabilities. Scores at or above the threshold are `malicious`; scores at or above half the threshold, rounded down, are `suspicious`. Lower scores are `clean`. A known hash forces a malicious verdict without changing the indicator score. Confidence follows from the verdict: `high` for malicious, `medium` for suspicious, `low` for a clean file with a nonzero score.
 
 Optional fields are `first_seen`, `contributor`, `description`, `references`, `retrohunt`, and `known_hashes`. Hash entries contain `sha256`, `label`, and optional `first_seen`. Validate every change and check representative positive and benign inputs. The Python subprocess activation rule is a hunting heuristic: legitimate programs can launch adjacent scripts too.
 
