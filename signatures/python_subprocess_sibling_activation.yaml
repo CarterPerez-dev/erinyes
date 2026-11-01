@@ -35,6 +35,16 @@ indicators:
     type: regex
     pattern: 'subprocess\.(Popen|run|call|check_call|check_output)\s*\(\s*\[\s*["'']python[0-9]?["'']\s*,\s*["''][A-Za-z_][A-Za-z0-9_./-]*\.py["'']'
 
+  - name: popen_sys_executable_sibling
+    weight: 40
+    type: regex
+    pattern: 'subprocess\.(Popen|run|call|check_call|check_output)\s*\(\s*\[\s*sys\.executable\s*,\s*["''][A-Za-z_][A-Za-z0-9_./-]*\.py["'']'
+
+  - name: import_comment_over_spawn
+    weight: 15
+    type: regex
+    pattern: '(?m)^[ \t]*#[^\n]*\bimport\b[^\n]*\n[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?subprocess\.(Popen|run|call|check_call|check_output)\s*\('
+
   - name: popen_sibling_shell_python
     weight: 35
     type: regex
@@ -75,3 +85,6 @@ known_hashes:
   - sha256: 1b1edffa2e83f55bb960a65ae93ac6180ebad49bd2f5250d2363751f55b3b52d
     label: system_info.py activation glue from Dropnation/contract-fuzzer (first observed)
     first_seen: 2026-10-20
+  - sha256: 400947fa7b4e74dbf4f761ecd91de2107275304809fb3b46e21a3821a3ed5579
+    label: "system_info.py activation glue from Dropnation/contract-fuzzer, later revision that spawns cl.py via [sys.executable, \"cl.py\"] under a decoy '# import all web3 modules' comment"
+    first_seen: 2026-11-01
