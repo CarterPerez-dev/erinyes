@@ -252,6 +252,10 @@ func (s *Scanner) scanAll(ctx context.Context, paths []string) ([]ScanResult, er
 	go func() {
 		defer close(jobs)
 		for _, p := range paths {
+			if err := ctx.Err(); err != nil {
+				feedErr = err
+				return
+			}
 			select {
 			case <-ctx.Done():
 				feedErr = ctx.Err()
@@ -272,6 +276,9 @@ func (s *Scanner) scanAll(ctx context.Context, paths []string) ([]ScanResult, er
 	}
 	if feedErr != nil {
 		return nil, feedErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return results, nil
 }
