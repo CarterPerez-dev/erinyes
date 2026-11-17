@@ -80,14 +80,13 @@ func writeMarkdown(w io.Writer, rep *Report) error {
 	flagged := rep.Flagged()
 	if len(flagged) == 0 {
 		md.line("No file scored at or above its signature's confidence threshold.\n")
-		return md.err
+	} else {
+		md.line("| Score | Confidence | Verdict | Signature | File |\n|---:|---|---|---|---|\n")
+		for _, e := range flagged {
+			md.line("| %d | %s | %s | `%s` | `%s` |\n", e.TotalScore, confidenceLabel(e.Confidence), strings.ToUpper(e.Verdict.String()), e.Signature, displayPath(e))
+		}
+		md.line("\n")
 	}
-
-	md.line("| Score | Confidence | Verdict | Signature | File |\n|---:|---|---|---|---|\n")
-	for _, e := range flagged {
-		md.line("| %d | %s | %s | `%s` | `%s` |\n", e.TotalScore, confidenceLabel(e.Confidence), strings.ToUpper(e.Verdict.String()), e.Signature, displayPath(e))
-	}
-	md.line("\n")
 
 	for _, e := range flagged {
 		md.line("### `%s`\n\n", displayPath(e))
